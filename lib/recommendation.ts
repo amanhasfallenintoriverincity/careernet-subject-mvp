@@ -17,10 +17,10 @@ export type RawMajor = {
   mClass?: string;
   summary?: string;
   description?: string;
-  relate_subject?: string;
-  relateSubject?: string[] | string;
+  relate_subject?: unknown;
+  relateSubject?: unknown;
   subject_name?: string;
-  subject_description?: string;
+  subject_description?: unknown;
   [key: string]: unknown;
 };
 
@@ -92,9 +92,28 @@ function normalizeText(value: unknown): string {
   return String(value);
 }
 
+function flattenTextValues(value: unknown): string[] {
+  if (value == null) return [];
+  if (typeof value === 'string' || typeof value === 'number') return [String(value)];
+  if (Array.isArray(value)) return value.flatMap(flattenTextValues);
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return [
+      record.subject_description,
+      record.subjectDescription,
+      record.description,
+      record.SBJECT_NM,
+      record.SBJECT_SUMRY,
+      record.name,
+      record.data
+    ].flatMap(flattenTextValues);
+  }
+  return [];
+}
+
 function splitList(value: unknown): string[] {
-  return normalizeText(value)
-    .split(/[,.，、\/|>\n]+/)
+  return flattenTextValues(value)
+    .flatMap((text) => text.split(/[,.，、\/|>\n]+/))
     .map((part) => part.trim())
     .filter(Boolean);
 }
