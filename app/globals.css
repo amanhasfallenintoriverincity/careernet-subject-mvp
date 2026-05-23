@@ -160,6 +160,36 @@ p { color: var(--muted); line-height: 1.7; }
   background: #fff;
 }
 .materials span { color: var(--muted); font-size: 14px; }
+.meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.meta-row span {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--primary-dark);
+  font-size: 12px;
+  font-weight: 800;
+}
+.filter-box {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 18px;
+  padding: 16px;
+  border-radius: 18px;
+  background: #f8faff;
+  border: 1px solid #dbe4ff;
+}
+.counsel-list { display: grid; gap: 14px; }
+.counsel {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+}
+.counsel h3 { margin-top: 0; }
 @media (max-width: 760px) {
   .search { flex-direction: column; }
   .search button { padding: 16px; }

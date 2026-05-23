@@ -30,6 +30,24 @@ export type RawMaterial = {
   url?: string;
   link?: string;
   description?: string;
+  target?: string;
+  activityType?: string;
+  year?: string;
+  [key: string]: unknown;
+};
+
+export type RawCounselingCase = {
+  question?: string;
+  answer?: string;
+  memo?: string;
+  category?: string;
+  code?: string;
+  [key: string]: unknown;
+};
+
+export type RawJobType = {
+  code?: string;
+  name?: string;
   [key: string]: unknown;
 };
 
@@ -38,6 +56,8 @@ export type RecommendationInput = {
   jobs?: RawJob[];
   majors?: RawMajor[];
   materials?: RawMaterial[];
+  counselingCases?: RawCounselingCase[];
+  jobTypes?: RawJobType[];
 };
 
 export type Recommendation = {
@@ -49,7 +69,9 @@ export type Recommendation = {
     optional: string[];
     reason: string;
   };
-  learningMaterials: Array<{ title: string; url: string; description?: string }>;
+  learningMaterials: Array<{ title: string; url: string; description?: string; target?: string; activityType?: string; year?: string }>;
+  counselingCases: Array<{ question: string; answer: string; category?: string }>;
+  jobTypes: Array<{ code: string; name: string }>;
   source: 'careernet' | 'fallback';
 };
 
@@ -144,6 +166,8 @@ export function buildRecommendation(input: RecommendationInput): Recommendation 
   const jobs = input.jobs ?? [];
   const majors = input.majors ?? [];
   const materials = input.materials ?? [];
+  const counselingCases = input.counselingCases ?? [];
+  const jobTypes = input.jobTypes ?? [];
   const allSubjects = extractSubjects(majors);
   const rule = selectRule(input.keyword);
   const strong = unique([...allSubjects.filter((s) => rule.strong.includes(s)), ...rule.strong]);
@@ -169,9 +193,21 @@ export function buildRecommendation(input: RecommendationInput): Recommendation 
     learningMaterials: materials.slice(0, 5).map((material) => ({
       title: normalizeText(material.title ?? material.name) || `${input.keyword} 진로교육자료`,
       url: normalizeText(material.url ?? material.link) || 'https://www.career.go.kr/',
-      description: normalizeText(material.description) || undefined
+      description: normalizeText(material.description) || undefined,
+      target: normalizeText(material.target) || undefined,
+      activityType: normalizeText(material.activityType) || undefined,
+      year: normalizeText(material.year) || undefined
     })),
-    source: jobs.length || majors.length || materials.length ? 'careernet' : 'fallback'
+    counselingCases: counselingCases.slice(0, 3).map((item) => ({
+      question: normalizeText(item.question ?? item.memo) || `${input.keyword} 관련 상담사례`,
+      answer: normalizeText(item.answer) || '상세 상담 답변은 커리어넷 상담사례를 확인해 주세요.',
+      category: normalizeText(item.category) || undefined
+    })),
+    jobTypes: jobTypes.slice(0, 8).map((item) => ({
+      code: normalizeText(item.code),
+      name: normalizeText(item.name)
+    })).filter((item) => item.code || item.name),
+    source: jobs.length || majors.length || materials.length || counselingCases.length || jobTypes.length ? 'careernet' : 'fallback'
   };
 }
 

@@ -27,7 +27,19 @@ describe('CareerNet detail-based recommendation flow', () => {
         }];
       }
       if (params.svcCode === 'COSE') {
-        return [{ title: 'AI 진로자료', url: 'https://career.example/ai', description: '자료 설명' }];
+        return [{ title: 'AI 진로자료', seq: '789', url: 'https://career.example/ai', description: '목록 자료 설명' }];
+      }
+      if (params.svcCode === 'COSE_VIEW') {
+        return [{ title: 'AI 진로자료 상세', seq: '789', url: 'https://career.example/ai-detail', description: '상세 자료 설명', targt: 'I', activityType: '진로탐색' }];
+      }
+      if (params.svcCode === 'COUNSEL') {
+        return [{ code: 'C001', memo: 'AI 진로 상담 질문', gubun: '진로탐색' }];
+      }
+      if (params.svcCode === 'COUNSEL_VIEW') {
+        return [{ question: 'AI 개발자가 되려면 어떤 과목이 좋나요?', answer: '수학과 정보 과목을 중심으로 준비하세요.', gubun: '진로탐색' }];
+      }
+      if (params.svcCode === 'JOB_TYPE') {
+        return [{ code: '10', name: '공학/기술' }];
       }
       return [];
     };
@@ -39,7 +51,11 @@ describe('CareerNet detail-based recommendation flow', () => {
       expect.objectContaining({ svcCode: 'JOB_VIEW', jobdicSeq: '123' }),
       expect.objectContaining({ svcCode: 'MAJOR' }),
       expect.objectContaining({ svcCode: 'MAJOR_VIEW', majorSeq: '456' }),
-      expect.objectContaining({ svcCode: 'COSE' })
+      expect.objectContaining({ svcCode: 'COSE' }),
+      expect.objectContaining({ svcCode: 'COSE_VIEW', seq: '789' }),
+      expect.objectContaining({ svcCode: 'COUNSEL' }),
+      expect.objectContaining({ svcCode: 'COUNSEL_VIEW', con_cd: 'C001' }),
+      expect.objectContaining({ svcCode: 'JOB_TYPE' })
     ]));
     expect(result.source).toBe('careernet');
     expect(result.careers[0]).toMatchObject({ name: '인공지능전문가', summary: '상세 직업 설명' });
@@ -47,6 +63,8 @@ describe('CareerNet detail-based recommendation flow', () => {
     expect(result.majors[0]).toMatchObject({ name: '컴퓨터공학과', summary: '상세 학과 설명' });
     expect(result.majors[0].relatedSubjects).toEqual(expect.arrayContaining(['수학Ⅰ', '수학Ⅱ', '정보', '인공지능 기초', '데이터 과학']));
     expect(result.recommendedSubjects.strong).toEqual(expect.arrayContaining(['정보', '인공지능 기초']));
-    expect(result.learningMaterials[0].title).toBe('AI 진로자료');
+    expect(result.learningMaterials[0]).toMatchObject({ title: 'AI 진로자료 상세', url: 'https://career.example/ai-detail', description: '상세 자료 설명', target: '일반고등학교', activityType: '진로탐색' });
+    expect(result.counselingCases[0]).toMatchObject({ question: 'AI 개발자가 되려면 어떤 과목이 좋나요?', answer: '수학과 정보 과목을 중심으로 준비하세요.', category: '진로탐색' });
+    expect(result.jobTypes[0]).toEqual({ code: '10', name: '공학/기술' });
   });
 });

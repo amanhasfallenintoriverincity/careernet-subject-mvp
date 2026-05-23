@@ -80,6 +80,12 @@ function ResultView({ result }: { result: Recommendation }) {
       <div className="grid">
         <section className="card">
           <h2>관련 직업</h2>
+          {result.jobTypes.length > 0 && (
+            <div className="filter-box">
+              <strong>커리어넷 직업분류</strong>
+              <TagList items={result.jobTypes.map((type) => type.name || type.code)} muted />
+            </div>
+          )}
           {result.careers.map((career) => (
             <article key={career.name} className="item">
               <h3>{career.name}</h3>
@@ -107,11 +113,31 @@ function ResultView({ result }: { result: Recommendation }) {
           {result.learningMaterials.map((material) => (
             <a key={`${material.title}-${material.url}`} href={material.url} target="_blank" rel="noreferrer">
               <strong>{material.title}</strong>
+              <div className="meta-row">
+                {material.target && <span>{material.target}</span>}
+                {material.activityType && <span>{material.activityType}</span>}
+                {material.year && <span>{material.year}</span>}
+              </div>
               {material.description && <span>{material.description}</span>}
             </a>
           ))}
         </div>
       </section>
+
+      {result.counselingCases.length > 0 && (
+        <section className="card">
+          <h2>비슷한 진로상담 사례</h2>
+          <div className="counsel-list">
+            {result.counselingCases.map((item) => (
+              <article className="counsel" key={item.question}>
+                {item.category && <p className="eyebrow">{item.category}</p>}
+                <h3>{item.question}</h3>
+                <p>{item.answer}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
     </section>
   );
 }

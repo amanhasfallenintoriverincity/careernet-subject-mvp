@@ -4,6 +4,13 @@
 
 현재 연동 흐름은 `JOB`/`MAJOR` 목록 검색에 그치지 않고, 검색 결과의 `jobdicSeq`와 `majorSeq`로 `JOB_VIEW`/`MAJOR_VIEW` 상세 API까지 조회합니다. 선택과목 추천은 `MAJOR_VIEW` 상세 응답의 `relate_subject`, `subject_description` 값을 우선 사용하고, 응답이 부족할 때만 자체 fallback 규칙을 보정용으로 사용합니다.
 
+## v0.2 기능
+
+- `COSE_VIEW` 상세 조회로 진로교육자료의 대상/활동유형/상세 설명을 카드에 표시
+- `COUNSEL` + `COUNSEL_VIEW`로 비슷한 진로상담 사례 표시
+- `JOB_TYPE`으로 커리어넷 직업분류 정보를 함께 노출
+- `JOB_VIEW`, `MAJOR_VIEW`, `COSE_VIEW`, `COUNSEL_VIEW` 상세 조회 흐름을 테스트로 검증
+
 ## 실행
 
 ```bash
@@ -30,6 +37,7 @@ API 키가 없거나 커리어넷 응답이 비어 있으면 앱은 자체 fallb
 - `lib/careernet.ts`: 커리어넷 API 호출/응답 매핑
 - `lib/recommendation.ts`: 과목 추출과 추천 로직
 - `tests/recommendation.test.ts`: 추천 로직 테스트
+- `tests/careernet.test.ts`: 커리어넷 상세 API 흐름 테스트
 
 ## 검증
 
