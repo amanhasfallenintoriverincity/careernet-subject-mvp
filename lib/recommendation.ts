@@ -1,3 +1,6 @@
+import type { StudentProfile } from './profile';
+export type { StudentProfile } from './profile';
+
 export type RawJob = {
   name?: string;
   job_nm?: string;
@@ -27,9 +30,12 @@ export type RawMajor = {
 export type RawMaterial = {
   title?: string;
   name?: string;
+  dataTitle?: string;
   url?: string;
   link?: string;
+  attFile?: string;
   description?: string;
+  dataContent?: string;
   target?: string;
   activityType?: string;
   year?: string;
@@ -40,6 +46,7 @@ export type RawCounselingCase = {
   question?: string;
   answer?: string;
   memo?: string;
+  content?: string;
   category?: string;
   code?: string;
   [key: string]: unknown;
@@ -48,7 +55,31 @@ export type RawCounselingCase = {
 export type RawJobType = {
   code?: string;
   name?: string;
+  jbgp_code?: string;
+  jbgp_code_nm?: string;
   [key: string]: unknown;
+};
+
+export type SubjectEvidence = {
+  source: 'careernet-major' | 'keyword-rule' | 'interest-area' | 'student-preference' | 'student-weakness';
+  label: string;
+  weight: number;
+};
+
+export type ScoredSubject = {
+  name: string;
+  score: number;
+  tier: 'strong' | 'optional' | 'explore';
+  evidence: SubjectEvidence[];
+};
+
+export type DataCoverage = {
+  jobs: number;
+  majors: number;
+  materials: number;
+  counselingCases: number;
+  jobTypes: number;
+  confidence: 'high' | 'medium' | 'low';
 };
 
 export type RecommendationInput = {
@@ -58,6 +89,7 @@ export type RecommendationInput = {
   materials?: RawMaterial[];
   counselingCases?: RawCounselingCase[];
   jobTypes?: RawJobType[];
+  studentProfile?: StudentProfile;
 };
 
 export type Recommendation = {
@@ -68,7 +100,10 @@ export type Recommendation = {
     strong: string[];
     optional: string[];
     reason: string;
+    scored?: ScoredSubject[];
   };
+  dataCoverage?: DataCoverage;
+  studentProfile?: StudentProfile;
   learningMaterials: Array<{ title: string; url: string; description?: string; target?: string; activityType?: string; year?: string }>;
   counselingCases: Array<{ question: string; answer: string; category?: string }>;
   jobTypes: Array<{ code: string; name: string }>;
@@ -107,11 +142,20 @@ const SUBJECT_RULES = [
   }
 ];
 
+const INTEREST_AREA_SUBJECTS: Record<NonNullable<StudentProfile['interestArea']>, string[]> = {
+  ai: ['정보', '수학', '미적분', '확률과 통계', '인공지능 기초', '데이터 과학'],
+  bio: ['생명과학Ⅰ', '화학Ⅰ', '확률과 통계', '보건'],
+  design: ['미술', '미술 창작', '디자인 일반', '언어와 매체'],
+  business: ['경제', '사회·문화', '확률과 통계', '실용 경제'],
+  general: ['국어', '수학', '영어', '진로와 직업']
+};
+
 function normalizeText(value: unknown): string {
-  if (Array.isArray(value)) return value.join(',');
-  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.map(normalizeText).filter(Boolean).join(', ');
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number') return String(value);
   if (value == null) return '';
-  return String(value);
+  return String(value).trim();
 }
 
 function flattenTextValues(value: unknown): string[] {
@@ -162,16 +206,102 @@ function selectRule(keyword: string) {
   };
 }
 
+function hasSubject(subjects: string[] | undefined, target: string): boolean {
+  return (subjects ?? []).some((subject) => subject.trim().toLowerCase() === target.trim().toLowerCase());
+}
+
+function addEvidence(
+  bucket: Map<string, { subject: string; score: number; evidence: SubjectEvidence[]; order: number }>,
+  subject: string,
+  evidence: SubjectEvidence,
+  orderHint: number
+) {
+  const clean = subject.trim();
+  if (!clean) return;
+  const current = bucket.get(clean) ?? { subject: clean, score: 0, evidence: [], order: orderHint };
+  current.score += evidence.weight;
+  current.order = Math.min(current.order, orderHint);
+  if (!current.evidence.some((item) => item.source === evidence.source && item.label === evidence.label)) {
+    current.evidence.push(evidence);
+  }
+  bucket.set(clean, current);
+}
+
+function scoreSubjects(majors: RawMajor[], rule: ReturnType<typeof selectRule>, studentProfile?: StudentProfile): ScoredSubject[] {
+  const bucket = new Map<string, { subject: string; score: number; evidence: SubjectEvidence[]; order: number }>();
+  let order = 0;
+
+  for (const subject of extractSubjects(majors)) {
+    addEvidence(bucket, subject, { source: 'careernet-major', label: '커리어넷 학과 상세의 관련 과목', weight: 5 }, order++);
+  }
+
+  for (const subject of rule.strong) {
+    addEvidence(bucket, subject, { source: 'keyword-rule', label: '입력 진로 키워드의 핵심 추천 과목', weight: 4 }, order++);
+  }
+
+  for (const subject of rule.optional) {
+    addEvidence(bucket, subject, { source: 'keyword-rule', label: '입력 진로 키워드의 추가 추천 과목', weight: 2 }, order++);
+  }
+
+  const interestSubjects = studentProfile?.interestArea ? INTEREST_AREA_SUBJECTS[studentProfile.interestArea] : [];
+  for (const subject of interestSubjects) {
+    addEvidence(bucket, subject, { source: 'interest-area', label: '학생 관심 계열과 연결되는 과목', weight: 3 }, order++);
+  }
+
+  for (const subject of studentProfile?.preferredSubjects ?? []) {
+    addEvidence(bucket, subject, { source: 'student-preference', label: '학생이 좋아하거나 강점으로 입력한 과목', weight: 3 }, order++);
+  }
+
+  for (const subject of studentProfile?.weakSubjects ?? []) {
+    addEvidence(bucket, subject, { source: 'student-weakness', label: '학생이 부담스럽다고 입력해 우선순위를 낮춘 과목', weight: -4 }, order++);
+  }
+
+  const sorted = Array.from(bucket.values()).sort((a, b) => {
+    const scoreDiff = b.score - a.score;
+    if (scoreDiff !== 0) return scoreDiff;
+    const aCareerNet = a.evidence.some((item) => item.source === 'careernet-major') ? 1 : 0;
+    const bCareerNet = b.evidence.some((item) => item.source === 'careernet-major') ? 1 : 0;
+    if (aCareerNet !== bCareerNet) return bCareerNet - aCareerNet;
+    return a.order - b.order;
+  });
+
+  return sorted.map((item, index) => {
+    const hasStrongKeywordRule = item.evidence.some((evidence) => evidence.source === 'keyword-rule' && evidence.weight >= 4);
+    const isWeakSubject = hasSubject(studentProfile?.weakSubjects, item.subject);
+    const tier: ScoredSubject['tier'] = !isWeakSubject && (item.score >= 7 || index < 4 || hasStrongKeywordRule) ? 'strong' : item.score >= 3 ? 'optional' : 'explore';
+    return {
+      name: item.subject,
+      score: item.score,
+      tier,
+      evidence: item.evidence
+    };
+  });
+}
+
+function buildDataCoverage(input: RecommendationInput): DataCoverage {
+  const jobs = input.jobs?.length ?? 0;
+  const majors = input.majors?.length ?? 0;
+  const materials = input.materials?.length ?? 0;
+  const counselingCases = input.counselingCases?.length ?? 0;
+  const jobTypes = input.jobTypes?.length ?? 0;
+  const primarySources = [jobs, majors, materials].filter((count) => count > 0).length;
+  const confidence: DataCoverage['confidence'] = majors > 0 && jobs > 0 && primarySources >= 3 ? 'high' : primarySources >= 2 ? 'medium' : 'low';
+  return { jobs, majors, materials, counselingCases, jobTypes, confidence };
+}
+
 export function buildRecommendation(input: RecommendationInput): Recommendation {
   const jobs = input.jobs ?? [];
   const majors = input.majors ?? [];
   const materials = input.materials ?? [];
   const counselingCases = input.counselingCases ?? [];
   const jobTypes = input.jobTypes ?? [];
-  const allSubjects = extractSubjects(majors);
   const rule = selectRule(input.keyword);
-  const strong = unique([...allSubjects.filter((s) => rule.strong.includes(s)), ...rule.strong]);
-  const optional = unique([...allSubjects.filter((s) => !strong.includes(s)), ...rule.optional]).slice(0, 8);
+  const scored = scoreSubjects(majors, rule, input.studentProfile);
+  const strong = scored.filter((subject) => subject.tier === 'strong' && subject.score > 0).map((subject) => subject.name).slice(0, 6);
+  const optional = scored
+    .filter((subject) => subject.tier === 'optional' && subject.score >= 3 && !strong.includes(subject.name) && !hasSubject(input.studentProfile?.weakSubjects, subject.name))
+    .map((subject) => subject.name)
+    .slice(0, 8);
 
   return {
     keyword: input.keyword,
@@ -188,36 +318,44 @@ export function buildRecommendation(input: RecommendationInput): Recommendation 
     recommendedSubjects: {
       strong,
       optional,
-      reason: rule.reason
+      reason: rule.reason,
+      scored
     },
+    dataCoverage: buildDataCoverage(input),
+    studentProfile: input.studentProfile,
     learningMaterials: materials.slice(0, 5).map((material) => ({
-      title: normalizeText(material.title ?? material.name) || `${input.keyword} 진로교육자료`,
-      url: normalizeText(material.url ?? material.link) || 'https://www.career.go.kr/',
-      description: normalizeText(material.description) || undefined,
+      title: normalizeText(material.title ?? material.name ?? material.dataTitle) || `${input.keyword} 진로교육자료`,
+      url: normalizeText(material.url ?? material.link ?? material.attFile) || 'https://www.career.go.kr/',
+      description: normalizeText(material.description ?? material.dataContent) || undefined,
       target: normalizeText(material.target) || undefined,
       activityType: normalizeText(material.activityType) || undefined,
       year: normalizeText(material.year) || undefined
     })),
     counselingCases: counselingCases.slice(0, 3).map((item) => ({
       question: normalizeText(item.question ?? item.memo) || `${input.keyword} 관련 상담사례`,
-      answer: normalizeText(item.answer) || '상세 상담 답변은 커리어넷 상담사례를 확인해 주세요.',
+      answer: normalizeText(item.answer ?? item.content) || '상세 상담 답변은 커리어넷 상담사례를 확인해 주세요.',
       category: normalizeText(item.category) || undefined
     })),
     jobTypes: jobTypes.slice(0, 8).map((item) => ({
-      code: normalizeText(item.code),
-      name: normalizeText(item.name)
+      code: normalizeText(item.code ?? item.jbgp_code),
+      name: normalizeText(item.name ?? item.jbgp_code_nm)
     })).filter((item) => item.code || item.name),
     source: jobs.length || majors.length || materials.length || counselingCases.length || jobTypes.length ? 'careernet' : 'fallback'
   };
 }
 
-export function fallbackRecommendation(keyword: string): Recommendation {
+export function fallbackRecommendation(keyword: string, studentProfile?: StudentProfile): Recommendation {
   const rule = selectRule(keyword);
   const recommendation = buildRecommendation({
     keyword,
+    studentProfile,
     jobs: [{ name: `${keyword} 관련 직업`, summary: 'API 키가 없거나 커리어넷 응답이 없을 때 표시되는 기본 예시입니다.' }],
     majors: [{ name: `${keyword} 관련 학과`, summary: '커리어넷 API 키를 설정하면 실제 관련 학과와 과목을 불러옵니다.', relate_subject: rule.strong.join(', ') }],
     materials: [{ title: '커리어넷 진로정보 검색', url: 'https://www.career.go.kr/' }]
   });
-  return { ...recommendation, source: 'fallback' };
+  return {
+    ...recommendation,
+    dataCoverage: recommendation.dataCoverage ? { ...recommendation.dataCoverage, confidence: 'low' } : undefined,
+    source: 'fallback'
+  };
 }

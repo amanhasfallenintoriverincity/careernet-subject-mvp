@@ -4,6 +4,27 @@
 
 현재 연동 흐름은 `JOB`/`MAJOR` 목록 검색에 그치지 않고, 검색 결과의 `jobdicSeq`와 `majorSeq`로 `JOB_VIEW`/`MAJOR_VIEW` 상세 API까지 조회합니다. 선택과목 추천은 `MAJOR_VIEW` 상세 응답의 `relate_subject`, `subject_description` 값을 우선 사용하고, 응답이 부족할 때만 자체 fallback 규칙을 보정용으로 사용합니다.
 
+## v0.3 기능
+
+- 학년, 관심 계열, 강점 과목, 부담 과목을 입력해 학생 맞춤형 추천 생성
+- 커리어넷 학과 상세 과목, 진로 키워드 규칙, 학생 선호/부담 과목을 함께 반영한 점수 기반 과목 우선순위화
+- 과목별 추천 근거와 점수를 카드로 표시
+- 결과 상단에 직업/학과/자료/상담 데이터 커버리지와 추천 신뢰도 표시
+- 실제 커리어넷 live 응답 필드(`dataTitle`, `dataContent`, `attFile`, `jbgp_code`, `jbgp_code_nm`) 매핑 보정
+- `JOB` 검색 결과가 없을 때 입력 키워드의 유용한 토큰으로 재검색
+
+예시 URL:
+
+```text
+/?keyword=인공지능%20개발자&interestArea=ai&preferredSubjects=정보,수학&weakSubjects=물리학Ⅰ
+```
+
+API 예시:
+
+```text
+/api/recommend?keyword=간호사&interestArea=bio&preferredSubjects=생명과학Ⅰ,화학Ⅰ
+```
+
 ## v0.2 기능
 
 - `COSE_VIEW` 상세 조회로 진로교육자료의 대상/활동유형/상세 설명을 카드에 표시

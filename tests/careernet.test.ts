@@ -44,7 +44,9 @@ describe('CareerNet detail-based recommendation flow', () => {
       return [];
     };
 
-    const result = await getCareerRecommendationWithClient('인공지능 개발자', client);
+    const result = await getCareerRecommendationWithClient('인공지능 개발자', client, {
+      studentProfile: { preferredSubjects: ['정보'], weakSubjects: ['물리학Ⅰ'] }
+    });
 
     expect(calls).toEqual(expect.arrayContaining([
       expect.objectContaining({ svcCode: 'JOB' }),
@@ -66,5 +68,65 @@ describe('CareerNet detail-based recommendation flow', () => {
     expect(result.learningMaterials[0]).toMatchObject({ title: 'AI 진로자료 상세', url: 'https://career.example/ai-detail', description: '상세 자료 설명', target: '일반고등학교', activityType: '진로탐색' });
     expect(result.counselingCases[0]).toMatchObject({ question: 'AI 개발자가 되려면 어떤 과목이 좋나요?', answer: '수학과 정보 과목을 중심으로 준비하세요.', category: '진로탐색' });
     expect(result.jobTypes[0]).toEqual({ code: '10', name: '공학/기술' });
+    expect(result.studentProfile).toEqual({ preferredSubjects: ['정보'], weakSubjects: ['물리학Ⅰ'] });
+    expect(result.recommendedSubjects.scored?.[0].evidence.map((item) => item.source)).toContain('student-preference');
+  });
+
+  it('maps live CareerNet COSE and JOB_TYPE field variants', async () => {
+    const client: CareerNetClient = async (params) => {
+      if (params.svcCode === 'COSE') {
+        return [{ dataTitle: '개발자 진로교육자료', seq: 'C123', targt: 'I', activityType: '진로탐색' }];
+      }
+      if (params.svcCode === 'COSE_VIEW') {
+        return [{ dataTitle: '개발자 진로교육자료 상세', dataContent: '라이브 응답 본문', attFile: 'https://career.example/file.pdf', target: '일반고등학교', year: '2026' }];
+      }
+      if (params.svcCode === 'JOB_TYPE') {
+        return [{ jbgp_code: '104168', jbgp_code_nm: '농림어업 관련직' }];
+      }
+      return [];
+    };
+
+    const result = await getCareerRecommendationWithClient('개발자', client);
+
+    expect(result.source).toBe('careernet');
+    expect(result.learningMaterials[0]).toMatchObject({
+      title: '개발자 진로교육자료 상세',
+      description: '라이브 응답 본문',
+      url: 'https://career.example/file.pdf',
+      target: '일반고등학교',
+      activityType: '진로탐색',
+      year: '2026'
+    });
+    expect(result.jobTypes[0]).toEqual({ code: '104168', name: '농림어업 관련직' });
+  });
+
+  it('retries JOB search with a useful token when the full keyword has no jobs', async () => {
+    const calls: Array<Record<string, string | number | undefined>> = [];
+    const client: CareerNetClient = async (params) => {
+      calls.push(params);
+      if (params.svcCode === 'JOB' && params.searchJobNm === '인공지능 개발자') return [];
+      if (params.svcCode === 'JOB' && params.searchJobNm === '개발자') return [{ job: '시스템소프트웨어개발자', jobdicSeq: '834' }];
+      if (params.svcCode === 'JOB_VIEW') return [{ job: '시스템소프트웨어개발자', summary: '상세 설명' }];
+      if (params.svcCode === 'MAJOR' && params.searchTitle === '개발자') return [{ majorSeq: '999', mClass: '관광경영과' }];
+      if (params.svcCode === 'MAJOR' && params.searchTitle === '컴퓨터') return [{ majorSeq: '569', mClass: '컴퓨터공학과' }];
+      if (params.svcCode === 'MAJOR_VIEW' && params.majorSeq === '999') return [{ major: '관광경영과', relate_subject: '사회' }];
+      if (params.svcCode === 'MAJOR_VIEW' && params.majorSeq === '569') return [{ major: '컴퓨터공학과', relate_subject: '정보, 미적분' }];
+      if (params.svcCode === 'COSE' && params.searchTitleWord === '인공지능') return [{ dataTitle: 'AI 자료', seq: 'A1' }];
+      if (params.svcCode === 'COSE_VIEW') return [{ dataTitle: 'AI 자료 상세', dataContent: '상세 자료' }];
+      return [];
+    };
+
+    const result = await getCareerRecommendationWithClient('인공지능 개발자', client);
+
+    expect(calls).toEqual(expect.arrayContaining([
+      expect.objectContaining({ svcCode: 'JOB', searchJobNm: '인공지능 개발자' }),
+      expect.objectContaining({ svcCode: 'JOB', searchJobNm: '개발자' }),
+      expect.objectContaining({ svcCode: 'JOB_VIEW', jobdicSeq: '834' }),
+      expect.objectContaining({ svcCode: 'MAJOR', searchTitle: '컴퓨터' }),
+      expect.objectContaining({ svcCode: 'COSE', searchTitleWord: '인공지능' })
+    ]));
+    expect(result.careers[0]).toMatchObject({ name: '시스템소프트웨어개발자', summary: '상세 설명' });
+    expect(result.majors[0]).toMatchObject({ name: '컴퓨터공학과' });
+    expect(result.learningMaterials[0]).toMatchObject({ title: 'AI 자료 상세', description: '상세 자료' });
   });
 });

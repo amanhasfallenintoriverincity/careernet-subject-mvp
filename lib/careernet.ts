@@ -1,4 +1,4 @@
-import { buildRecommendation, fallbackRecommendation, type RawCounselingCase, type RawJob, type RawJobType, type RawMajor, type RawMaterial } from './recommendation';
+import { buildRecommendation, fallbackRecommendation, type RawCounselingCase, type RawJob, type RawJobType, type RawMajor, type RawMaterial, type StudentProfile } from './recommendation';
 
 const BASE_URL = 'https://www.career.go.kr/cnet/openapi/getOpenApi';
 const MAX_DETAIL_REQUESTS = 3;
@@ -89,9 +89,9 @@ function mapMajor(item: unknown): RawMajor {
 function mapMaterial(item: unknown): RawMaterial {
   const record = firstRecord(item);
   return {
-    title: getString(record, ['title', 'name', 'coseTitle', 'subject']),
-    description: getString(record, ['description', 'summary', 'content', 'contents', 'cn']),
-    url: getString(record, ['url', 'link', 'fileUrl', 'viewUrl', 'atchmnflUrl']),
+    title: getString(record, ['title', 'name', 'coseTitle', 'dataTitle', 'subject']),
+    description: getString(record, ['description', 'summary', 'content', 'contents', 'dataContent', 'cn']),
+    url: getString(record, ['url', 'link', 'fileUrl', 'viewUrl', 'atchmnflUrl', 'attFile']),
     target: normalizeTarget(getString(record, ['target', 'targt', 'TARGET'])),
     activityType: getString(record, ['activityType', 'activity_type', 'ACTIVITY_TYPE', 'category']),
     year: getString(record, ['year'])
@@ -111,8 +111,8 @@ function mapCounselingCase(item: unknown): RawCounselingCase {
 function mapJobType(item: unknown): RawJobType {
   const record = firstRecord(item);
   return {
-    code: getString(record, ['code', 'CODE', 'job_ctg_code', 'CODE_ID']),
-    name: getString(record, ['name', 'CODE_NM', 'job_ctg_nm', 'category', 'profession'])
+    code: getString(record, ['code', 'CODE', 'job_ctg_code', 'jbgp_code', 'CODE_ID']),
+    name: getString(record, ['name', 'CODE_NM', 'job_ctg_nm', 'jbgp_code_nm', 'category', 'profession'])
   };
 }
 
@@ -149,8 +149,32 @@ function getCounselCode(item: unknown): string {
   return getString(record, ['code', 'con_cd', 'conCd']);
 }
 
+const DOMAIN_EXPANSIONS: Array<[RegExp, string[]]> = [
+  [/인공지능|AI|개발자|소프트웨어|컴퓨터|데이터/i, ['인공지능', '컴퓨터', '소프트웨어', '개발자']],
+  [/간호|의학|의사|보건|바이오|생명/i, ['간호', '보건', '생명', '의학']],
+  [/웹툰|디자인|미술|영상|콘텐츠/i, ['웹툰', '디자인', '미술', '콘텐츠']],
+  [/마케팅|경영|경제|창업/i, ['마케팅', '경영', '경제']]
+];
+
+function buildSearchKeywords(keyword: string, mode: 'job' | 'content' = 'content'): string[] {
+  const tokens = keyword
+    .split(/[\s,/|]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2);
+  const usefulTokens = tokens.filter((token) => /개발자|소프트웨어|컴퓨터|간호사|간호|의사|교사|디자이너|마케팅|경영|데이터|프로그래머/.test(token));
+  const expansions = DOMAIN_EXPANSIONS.flatMap(([pattern, values]) => pattern.test(keyword) ? values : []);
+  const candidates = mode === 'job'
+    ? [keyword, ...usefulTokens, ...tokens.slice().reverse(), ...expansions]
+    : [keyword, ...expansions, ...usefulTokens, ...tokens.slice().reverse()];
+  return Array.from(new Set(candidates)).slice(0, 8);
+}
+
 async function fetchJobDetails(keyword: string, client: CareerNetClient): Promise<RawJob[]> {
-  const list = await client({ svcCode: 'JOB', gubun: 'job_dic_list', searchJobNm: keyword, thisPage: 1, perPage: 8 });
+  let list: unknown[] = [];
+  for (const searchJobNm of buildSearchKeywords(keyword, 'job')) {
+    list = await client({ svcCode: 'JOB', gubun: 'job_dic_list', searchJobNm, thisPage: 1, perPage: 8 });
+    if (list.length) break;
+  }
   const targets = list.slice(0, MAX_DETAIL_REQUESTS);
   const details = await Promise.all(
     targets.map(async (job) => {
@@ -166,7 +190,11 @@ async function fetchJobDetails(keyword: string, client: CareerNetClient): Promis
 }
 
 async function fetchMajorDetails(keyword: string, client: CareerNetClient): Promise<RawMajor[]> {
-  const list = await client({ svcCode: 'MAJOR', gubun: 'univ_list', searchTitle: keyword, thisPage: 1, perPage: 8 });
+  let list: unknown[] = [];
+  for (const searchTitle of buildSearchKeywords(keyword)) {
+    list = await client({ svcCode: 'MAJOR', gubun: 'univ_list', searchTitle, thisPage: 1, perPage: 8 });
+    if (list.length) break;
+  }
   const targets = list.slice(0, MAX_DETAIL_REQUESTS);
   const details = await Promise.all(
     targets.map(async (major) => {
@@ -182,7 +210,11 @@ async function fetchMajorDetails(keyword: string, client: CareerNetClient): Prom
 }
 
 async function fetchMaterials(keyword: string, client: CareerNetClient): Promise<RawMaterial[]> {
-  const list = await client({ svcCode: 'COSE', searchTitleWord: keyword, thisPage: 1, perPage: 8 });
+  let list: unknown[] = [];
+  for (const searchTitleWord of buildSearchKeywords(keyword)) {
+    list = await client({ svcCode: 'COSE', searchTitleWord, thisPage: 1, perPage: 8 });
+    if (list.length) break;
+  }
   const targets = list.slice(0, MAX_DETAIL_REQUESTS);
   const details = await Promise.all(
     targets.map(async (material) => {
@@ -216,9 +248,13 @@ async function fetchJobTypes(client: CareerNetClient): Promise<RawJobType[]> {
   return types.map(mapJobType).filter((item) => item.code || item.name);
 }
 
-export async function getCareerRecommendationWithClient(keyword: string, client: CareerNetClient) {
+type CareerRecommendationOptions = {
+  studentProfile?: StudentProfile;
+};
+
+export async function getCareerRecommendationWithClient(keyword: string, client: CareerNetClient, options: CareerRecommendationOptions = {}) {
   const cleanKeyword = keyword.trim();
-  if (!cleanKeyword) return fallbackRecommendation('진로');
+  if (!cleanKeyword) return fallbackRecommendation('진로', options.studentProfile);
 
   try {
     const [jobs, majors, materials, counselingCases, jobTypes] = await Promise.all([
@@ -229,14 +265,14 @@ export async function getCareerRecommendationWithClient(keyword: string, client:
       fetchJobTypes(client)
     ]);
 
-    if (!jobs.length && !majors.length && !materials.length && !counselingCases.length && !jobTypes.length) return fallbackRecommendation(cleanKeyword);
-    return buildRecommendation({ keyword: cleanKeyword, jobs, majors, materials, counselingCases, jobTypes });
+    if (!jobs.length && !majors.length && !materials.length && !counselingCases.length && !jobTypes.length) return fallbackRecommendation(cleanKeyword, options.studentProfile);
+    return buildRecommendation({ keyword: cleanKeyword, jobs, majors, materials, counselingCases, jobTypes, studentProfile: options.studentProfile });
   } catch (error) {
     console.error(error);
-    return fallbackRecommendation(cleanKeyword);
+    return fallbackRecommendation(cleanKeyword, options.studentProfile);
   }
 }
 
-export async function getCareerRecommendation(keyword: string) {
-  return getCareerRecommendationWithClient(keyword, callCareerNet);
+export async function getCareerRecommendation(keyword: string, options: CareerRecommendationOptions = {}) {
+  return getCareerRecommendationWithClient(keyword, callCareerNet, options);
 }
