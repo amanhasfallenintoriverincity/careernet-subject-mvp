@@ -94,4 +94,48 @@ describe('NEIS school context integration', () => {
     expect(availability.summary).toContain('천안오성고등학교');
     expect(availability.summary).toContain('시간표에서 확인');
   });
+
+  it('finds regional high schools that teach the recommended subjects and ranks better matches first', async () => {
+    const { findRegionalSubjectSchoolsWithClient } = await import('../lib/neis');
+    const recommendation = buildRecommendation({
+      keyword: '인공지능 개발자',
+      majors: [{ name: '컴퓨터공학과', relate_subject: '정보, 미적분, 데이터 과학' }]
+    });
+    const calls: Array<{ resource: string; params: Record<string, string | number | undefined> }> = [];
+    const client: NeisClient = async (resource, params) => {
+      calls.push({ resource, params });
+      if (resource === 'schoolInfo') {
+        expect(params.ATPT_OFCDC_SC_CODE).toBe('N10');
+        expect(params.SCHUL_KND_SC_NM).toBe('고등학교');
+        return [
+          { ATPT_OFCDC_SC_CODE: 'N10', ATPT_OFCDC_SC_NM: '충청남도교육청', SD_SCHUL_CODE: '1001', SCHUL_NM: '천안오성고등학교', ORG_RDNMA: '충남 천안시 서북구' },
+          { ATPT_OFCDC_SC_CODE: 'N10', ATPT_OFCDC_SC_NM: '충청남도교육청', SD_SCHUL_CODE: '1002', SCHUL_NM: '천안제일고등학교', ORG_RDNMA: '충남 천안시 동남구' }
+        ];
+      }
+      if (resource === 'hisTimetable' && params.SD_SCHUL_CODE === '1001') {
+        return [{ ITRT_CNTNT: '정보' }, { ITRT_CNTNT: '인공지능 기초' }, { ITRT_CNTNT: '미적분' }];
+      }
+      if (resource === 'hisTimetable' && params.SD_SCHUL_CODE === '1002') {
+        return [{ ITRT_CNTNT: '정보' }];
+      }
+      return [];
+    };
+
+    const result = await findRegionalSubjectSchoolsWithClient('충남', recommendation.recommendedSubjects.scored ?? [], client, {
+      ay: '2026',
+      sem: '1',
+      grade: '2',
+      limit: 5
+    });
+
+    expect(result.region.officeCode).toBe('N10');
+    expect(result.matches).toHaveLength(2);
+    expect(result.matches[0].school.name).toBe('천안오성고등학교');
+    expect(result.matches[0].confirmed.map((item) => item.subject)).toEqual(expect.arrayContaining(['정보', '미적분', '인공지능 기초']));
+    expect(result.matches[0].matchScore).toBeGreaterThan(result.matches[1].matchScore);
+    expect(result.summary).toContain('충남');
+    expect(calls).toEqual(expect.arrayContaining([
+      { resource: 'hisTimetable', params: expect.objectContaining({ ATPT_OFCDC_SC_CODE: 'N10', SD_SCHUL_CODE: '1001', AY: '2026', SEM: '1', GRADE: '2' }) }
+    ]));
+  });
 });

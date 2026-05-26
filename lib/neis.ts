@@ -54,6 +54,22 @@ export type SchoolSubjectAvailability = {
   summary: string;
 };
 
+export type RegionalSubjectSchoolMatch = SchoolSubjectAvailability & {
+  matchScore: number;
+};
+
+export type RegionalSubjectSchoolSearch = {
+  region: { name: string; officeCode?: string };
+  matches: RegionalSubjectSchoolMatch[];
+  searchedSchools: number;
+  requestedSubjects: string[];
+  summary: string;
+};
+
+export type RegionalSubjectSchoolSearchOptions = NeisSchoolContextOptions & {
+  limit?: number;
+};
+
 function text(value: unknown): string {
   if (typeof value === 'string') return value.trim();
   if (typeof value === 'number') return String(value);
@@ -140,18 +156,42 @@ function extractTimetableSubjects(rows: NeisRow[]): string[] {
   return unique(rows.map((row) => normalizeSubject(text(row.ITRT_CNTNT))).filter(Boolean));
 }
 
-export async function getNeisSchoolContextWithClient(
-  schoolName: string,
+const OFFICE_CODE_ALIASES: Array<{ code: string; names: string[] }> = [
+  { code: 'B10', names: ['서울', '서울특별시', '서울시', '서울특별시교육청'] },
+  { code: 'C10', names: ['부산', '부산광역시', '부산시', '부산광역시교육청'] },
+  { code: 'D10', names: ['대구', '대구광역시', '대구시', '대구광역시교육청'] },
+  { code: 'E10', names: ['인천', '인천광역시', '인천시', '인천광역시교육청'] },
+  { code: 'F10', names: ['광주', '광주광역시', '광주시', '광주광역시교육청'] },
+  { code: 'G10', names: ['대전', '대전광역시', '대전시', '대전광역시교육청'] },
+  { code: 'H10', names: ['울산', '울산광역시', '울산시', '울산광역시교육청'] },
+  { code: 'I10', names: ['세종', '세종특별자치시', '세종시', '세종특별자치시교육청'] },
+  { code: 'J10', names: ['경기', '경기도', '경기도교육청'] },
+  { code: 'K10', names: ['강원', '강원도', '강원특별자치도', '강원특별자치도교육청'] },
+  { code: 'M10', names: ['충북', '충청북도', '충청북도교육청'] },
+  { code: 'N10', names: ['충남', '충청남도', '충청남도교육청'] },
+  { code: 'P10', names: ['전북', '전라북도', '전북특별자치도', '전북특별자치도교육청'] },
+  { code: 'Q10', names: ['전남', '전라남도', '전라남도교육청'] },
+  { code: 'R10', names: ['경북', '경상북도', '경상북도교육청'] },
+  { code: 'S10', names: ['경남', '경상남도', '경상남도교육청'] },
+  { code: 'T10', names: ['제주', '제주도', '제주특별자치도', '제주특별자치도교육청'] }
+];
+
+function normalizeRegion(value: string): string {
+  return value.replace(/\s+/g, '').trim().toLowerCase();
+}
+
+function resolveOfficeCode(region: string): string | undefined {
+  const cleanRegion = normalizeRegion(region);
+  if (!cleanRegion) return undefined;
+  if (/^[a-z]\d{2}$/i.test(cleanRegion)) return cleanRegion.toUpperCase();
+  return OFFICE_CODE_ALIASES.find((item) => item.names.some((name) => normalizeRegion(name) === cleanRegion))?.code;
+}
+
+async function getNeisSchoolContextForSchoolWithClient(
+  school: NeisSchool,
   client: NeisClient,
   options: NeisSchoolContextOptions = {}
-): Promise<NeisSchoolContext | null> {
-  const cleanSchoolName = schoolName.trim();
-  if (!cleanSchoolName) return null;
-
-  const schools = await client('schoolInfo', { SCHUL_NM: cleanSchoolName, SCHUL_KND_SC_NM: '고등학교' });
-  const school = schools.map(mapSchool).find((item) => item.officeCode && item.schoolCode) ?? null;
-  if (!school) return null;
-
+): Promise<NeisSchoolContext> {
   const common = {
     ATPT_OFCDC_SC_CODE: school.officeCode,
     SD_SCHUL_CODE: school.schoolCode
@@ -180,6 +220,21 @@ export async function getNeisSchoolContextWithClient(
     timetableSubjects: extractTimetableSubjects(timetableRows),
     source: 'neis'
   };
+}
+
+export async function getNeisSchoolContextWithClient(
+  schoolName: string,
+  client: NeisClient,
+  options: NeisSchoolContextOptions = {}
+): Promise<NeisSchoolContext | null> {
+  const cleanSchoolName = schoolName.trim();
+  if (!cleanSchoolName) return null;
+
+  const schools = await client('schoolInfo', { SCHUL_NM: cleanSchoolName, SCHUL_KND_SC_NM: '고등학교' });
+  const school = schools.map(mapSchool).find((item) => item.officeCode && item.schoolCode) ?? null;
+  if (!school) return null;
+
+  return getNeisSchoolContextForSchoolWithClient(school, client, options);
 }
 
 export async function getNeisSchoolContext(schoolName: string, options: NeisSchoolContextOptions = {}) {
@@ -212,4 +267,68 @@ export function buildSchoolSubjectAvailability(scoredSubjects: ScoredSubject[], 
     tracks: context.tracks,
     summary
   };
+}
+
+function rankRegionalMatch(availability: SchoolSubjectAvailability): number {
+  return availability.confirmed.reduce((sum, item) => sum + item.score, 0);
+}
+
+export async function findRegionalSubjectSchoolsWithClient(
+  regionName: string,
+  scoredSubjects: ScoredSubject[],
+  client: NeisClient,
+  options: RegionalSubjectSchoolSearchOptions = {}
+): Promise<RegionalSubjectSchoolSearch> {
+  const cleanRegion = regionName.trim();
+  const officeCode = resolveOfficeCode(cleanRegion);
+  const requestedSubjects = scoredSubjects.filter((item) => item.score > 0).slice(0, 12).map((item) => item.name);
+  if (!cleanRegion || requestedSubjects.length === 0) {
+    return {
+      region: { name: cleanRegion, officeCode },
+      matches: [],
+      searchedSchools: 0,
+      requestedSubjects,
+      summary: '지역명과 추천 과목이 있어야 과목 개설 학교를 찾을 수 있습니다.'
+    };
+  }
+
+  const schoolRows = await client('schoolInfo', {
+    ATPT_OFCDC_SC_CODE: officeCode,
+    LCTN_SC_NM: officeCode ? undefined : cleanRegion,
+    SCHUL_KND_SC_NM: '고등학교',
+    pSize: 300
+  });
+  const schools = schoolRows.map(mapSchool).filter((school) => school.officeCode && school.schoolCode);
+  const limit = options.limit ?? 10;
+  const matches: RegionalSubjectSchoolMatch[] = [];
+
+  for (const school of schools) {
+    const context = await getNeisSchoolContextForSchoolWithClient(school, client, options);
+    const availability = buildSchoolSubjectAvailability(scoredSubjects, context);
+    if (availability.confirmed.length === 0) continue;
+    matches.push({ ...availability, matchScore: rankRegionalMatch(availability) });
+  }
+
+  matches.sort((a, b) => {
+    const scoreDiff = b.matchScore - a.matchScore;
+    if (scoreDiff !== 0) return scoreDiff;
+    return b.confirmed.length - a.confirmed.length;
+  });
+
+  const topMatches = matches.slice(0, limit);
+  return {
+    region: { name: cleanRegion, officeCode },
+    matches: topMatches,
+    searchedSchools: schools.length,
+    requestedSubjects,
+    summary: `${cleanRegion} 지역 고등학교 ${schools.length}곳 중 추천 과목을 NEIS 시간표에서 확인한 학교 ${matches.length}곳을 찾았습니다.`
+  };
+}
+
+export async function findRegionalSubjectSchools(
+  regionName: string,
+  scoredSubjects: ScoredSubject[],
+  options: RegionalSubjectSchoolSearchOptions = {}
+) {
+  return findRegionalSubjectSchoolsWithClient(regionName, scoredSubjects, callNeis, options);
 }
