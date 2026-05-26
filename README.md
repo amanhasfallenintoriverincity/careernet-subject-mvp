@@ -4,6 +4,27 @@
 
 현재 연동 흐름은 `JOB`/`MAJOR` 목록 검색에 그치지 않고, 검색 결과의 `jobdicSeq`와 `majorSeq`로 `JOB_VIEW`/`MAJOR_VIEW` 상세 API까지 조회합니다. 선택과목 추천은 `MAJOR_VIEW` 상세 응답의 `relate_subject`, `subject_description` 값을 우선 사용하고, 응답이 부족할 때만 자체 fallback 규칙을 보정용으로 사용합니다.
 
+## v0.4 기능
+
+- NEIS Open API 연동 추가
+- 학교명으로 `schoolInfo`를 조회해 시도교육청코드와 행정표준코드 자동 확보
+- `schoolMajorinfo`, `schulAflcoinfo`로 학교 학과/계열 표시
+- `hisTimetable`로 고등학교 시간표 수업내용을 조회해 추천 과목과 실제 시간표 과목 비교
+- `tiClrminfo` 기반 강의실/학과 필터 확장 기반 마련
+- 웹 화면과 `/api/recommend`에서 `schoolName`, `ay`, `sem` 파라미터 지원
+
+NEIS 학교 확인 예시 URL:
+
+```text
+/?keyword=인공지능%20개발자&interestArea=ai&preferredSubjects=정보,수학&schoolName=천안오성고&ay=2026&sem=1
+```
+
+API 예시:
+
+```text
+/api/recommend?keyword=인공지능%20개발자&interestArea=ai&schoolName=천안오성고&ay=2026&sem=1
+```
+
 ## v0.3 기능
 
 - 학년, 관심 계열, 강점 과목, 부담 과목을 입력해 학생 맞춤형 추천 생성
@@ -41,24 +62,27 @@ npm run dev
 
 브라우저에서 `http://localhost:3000`을 엽니다.
 
-## 커리어넷 API 키 설정
+## 커리어넷/NEIS API 키 설정
 
 프로젝트 루트에 `.env.local` 파일을 만들고 다음 값을 넣으세요.
 
 ```env
 CAREERNET_API_KEY=발급받은_커리어넷_API키
+NEIS_API_KEY=발급받은_NEIS_API키
 ```
 
-API 키가 없거나 커리어넷 응답이 비어 있으면 앱은 자체 fallback 추천 규칙으로 예시 결과를 보여줍니다.
+API 키가 없거나 응답이 비어 있으면 앱은 자체 fallback 추천 규칙으로 예시 결과를 보여줍니다. NEIS는 일부 샘플/공개 응답이 가능할 수 있지만, 안정적인 운영에는 `NEIS_API_KEY` 설정을 권장합니다.
 
 ## 주요 파일
 
 - `app/page.tsx`: 메인 UI
 - `app/api/recommend/route.ts`: 추천 API 라우트
 - `lib/careernet.ts`: 커리어넷 API 호출/응답 매핑
+- `lib/neis.ts`: NEIS API 호출, 학교 컨텍스트 생성, 추천 과목 시간표 매칭
 - `lib/recommendation.ts`: 과목 추출과 추천 로직
 - `tests/recommendation.test.ts`: 추천 로직 테스트
 - `tests/careernet.test.ts`: 커리어넷 상세 API 흐름 테스트
+- `tests/neis.test.ts`: NEIS 응답 파싱, 학교 컨텍스트, 시간표 과목 매칭 테스트
 
 ## 검증
 

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getCareerRecommendation } from '../lib/careernet';
+import { buildSchoolSubjectAvailability, getNeisSchoolContext, type SchoolSubjectAvailability } from '../lib/neis';
 import { parseStudentProfile } from '../lib/profile';
 import type { Recommendation } from '../lib/recommendation';
 
@@ -12,6 +13,9 @@ type PageProps = {
     interestArea?: string;
     preferredSubjects?: string;
     weakSubjects?: string;
+    schoolName?: string;
+    ay?: string;
+    sem?: string;
   }>;
 };
 
@@ -20,14 +24,21 @@ export default async function Home({ searchParams }: PageProps) {
   const keyword = params.keyword?.trim() || '';
   const studentProfile = parseStudentProfile(params);
   const result = keyword ? await getCareerRecommendation(keyword, { studentProfile }) : null;
+  const schoolName = params.schoolName?.trim() || '';
+  const schoolContext = result && schoolName
+    ? await getNeisSchoolContext(schoolName, { ay: params.ay || undefined, sem: params.sem || undefined, grade: studentProfile.grade })
+    : null;
+  const schoolAvailability = result && schoolContext
+    ? buildSchoolSubjectAvailability(result.recommendedSubjects.scored ?? [], schoolContext)
+    : null;
 
   return (
     <main className="shell">
       <section className="hero">
-        <p className="eyebrow">CareerNet Open API MVP v0.3</p>
+        <p className="eyebrow">CareerNet + NEIS Open API MVP v0.4</p>
         <h1>진로를 입력하면 나에게 맞는 고등학교 선택과목을 추천해드립니다.</h1>
         <p className="subtitle">
-          직업정보, 학과정보, 진로교육자료를 연결하고 학생의 관심 계열과 강점 과목까지 반영해 추천 근거를 함께 보여주는 MVP입니다.
+          직업정보, 학과정보, 진로교육자료를 연결하고 NEIS 학교 시간표까지 대조해 우리 학교에서 확인되는 과목을 함께 보여주는 MVP입니다.
         </p>
         <form className="search-panel" action="/" method="get">
           <div className="search-main">
@@ -69,6 +80,20 @@ export default async function Home({ searchParams }: PageProps) {
               부담스러운 과목
               <input name="weakSubjects" defaultValue={params.weakSubjects ?? ''} placeholder="예: 물리학Ⅰ" />
             </label>
+            <label>
+              학교명
+              <input name="schoolName" defaultValue={schoolName} placeholder="예: 천안오성고" />
+            </label>
+            <label>
+              NEIS 조회 학년도/학기
+              <span className="inline-fields">
+                <input name="ay" defaultValue={params.ay ?? '2026'} placeholder="2026" />
+                <select name="sem" defaultValue={params.sem ?? '1'}>
+                  <option value="1">1학기</option>
+                  <option value="2">2학기</option>
+                </select>
+              </span>
+            </label>
           </fieldset>
         </form>
         <div className="chips">
@@ -80,10 +105,13 @@ export default async function Home({ searchParams }: PageProps) {
           <Link href="/?keyword=인공지능%20개발자&interestArea=ai&preferredSubjects=정보,수학&weakSubjects=물리학Ⅰ">
             AI 맞춤 예시
           </Link>
+          <Link href="/?keyword=인공지능%20개발자&interestArea=ai&preferredSubjects=정보,수학&schoolName=천안오성고&ay=2026&sem=1">
+            NEIS 학교 확인 예시
+          </Link>
         </div>
       </section>
 
-      {result ? <ResultView result={result} /> : <EmptyState />}
+      {result ? <ResultView result={result} schoolAvailability={schoolAvailability} schoolName={schoolName} /> : <EmptyState />}
     </main>
   );
 }
@@ -97,6 +125,7 @@ function EmptyState() {
         <li>관련 학과와 커리어넷 연계 과목</li>
         <li>학생 입력값을 반영한 강력 추천/추가 추천 선택과목</li>
         <li>과목별 추천 근거와 데이터 신뢰도</li>
+        <li>NEIS 학교 시간표 기반 실제 확인 과목 비교</li>
         <li>추천 진로교육자료와 비슷한 상담사례</li>
       </ul>
       <Link className="primary-link" href="/?keyword=인공지능%20개발자&interestArea=ai&preferredSubjects=정보,수학">예시 결과 보기</Link>
@@ -104,7 +133,7 @@ function EmptyState() {
   );
 }
 
-function ResultView({ result }: { result: Recommendation }) {
+function ResultView({ result, schoolAvailability, schoolName }: { result: Recommendation; schoolAvailability: SchoolSubjectAvailability | null; schoolName: string }) {
   return (
     <section className="results">
       <div className="card highlight">
@@ -147,6 +176,51 @@ function ResultView({ result }: { result: Recommendation }) {
           </div>
         )}
       </div>
+
+      {schoolAvailability ? (
+        <section className="card school-card">
+          <div className="row">
+            <div>
+              <p className="eyebrow">NEIS 학교 기준 확인</p>
+              <h2>{schoolAvailability.school.name}</h2>
+            </div>
+            <span className="badge">NEIS</span>
+          </div>
+          <p>{schoolAvailability.summary}</p>
+          {(schoolAvailability.departments.length > 0 || schoolAvailability.tracks.length > 0) && (
+            <div className="filter-box">
+              {schoolAvailability.tracks.length > 0 && (
+                <>
+                  <strong>학교 계열</strong>
+                  <TagList items={schoolAvailability.tracks} muted />
+                </>
+              )}
+              {schoolAvailability.departments.length > 0 && (
+                <>
+                  <strong>학교 학과</strong>
+                  <TagList items={schoolAvailability.departments} muted />
+                </>
+              )}
+            </div>
+          )}
+          <div className="grid">
+            <div>
+              <h3>시간표에서 확인된 추천 과목</h3>
+              {schoolAvailability.confirmed.length ? <AvailabilityList items={schoolAvailability.confirmed} /> : <p>현재 조회 범위에서 확인된 추천 과목이 없습니다.</p>}
+            </div>
+            <div>
+              <h3>추가 확인이 필요한 과목</h3>
+              {schoolAvailability.notFound.length ? <AvailabilityList items={schoolAvailability.notFound.slice(0, 8)} muted /> : <p>추천 과목이 모두 시간표에서 확인되었습니다.</p>}
+            </div>
+          </div>
+        </section>
+      ) : schoolName ? (
+        <section className="card school-card">
+          <p className="eyebrow">NEIS 학교 기준 확인</p>
+          <h2>{schoolName}</h2>
+          <p>NEIS에서 학교 또는 시간표 정보를 찾지 못했습니다. 학교명을 공식 명칭으로 다시 입력하거나 학년도/학기를 바꿔 확인해 주세요.</p>
+        </section>
+      ) : null}
 
       <div className="grid">
         <section className="card">
@@ -210,6 +284,22 @@ function ResultView({ result }: { result: Recommendation }) {
         </section>
       )}
     </section>
+  );
+}
+
+function AvailabilityList({ items, muted = false }: { items: Array<{ subject: string; score: number; evidence: string }>; muted?: boolean }) {
+  return (
+    <div className="subject-evidence-list">
+      {items.map((item) => (
+        <article className="subject-evidence" key={`${item.subject}-${item.evidence}`}>
+          <div className="row compact">
+            <strong>{item.subject}</strong>
+            <span className={muted ? 'score muted-score' : 'score'}>점수 {item.score}</span>
+          </div>
+          <p>{item.evidence}</p>
+        </article>
+      ))}
+    </div>
   );
 }
 

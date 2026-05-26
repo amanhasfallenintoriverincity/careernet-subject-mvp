@@ -117,6 +117,11 @@ h1 {
   background: #fff;
   color: var(--ink);
 }
+.inline-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
 .primary-link { display: inline-flex; padding: 14px 18px; margin-top: 12px; }
 .chips {
   margin-top: 16px;
@@ -259,6 +264,11 @@ p { color: var(--muted); line-height: 1.7; }
   background: #fff;
 }
 .counsel h3 { margin-top: 0; }
+.school-card {
+  border-color: #b7cdfd;
+  background: linear-gradient(135deg, #ffffff, #f4f8ff);
+}
+.muted-score { background: #fff3e8; color: #b54708; }
 @media (max-width: 760px) {
   .search, .search-main { flex-direction: column; }
   .search button, .search-main button { padding: 16px; }
