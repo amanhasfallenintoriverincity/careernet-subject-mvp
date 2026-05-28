@@ -1,16 +1,21 @@
-import { describe, expect, it } from 'vitest';
-import { getCareerRecommendationWithClient, type CareerNetClient } from '../lib/careernet';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { callCareerNet, getCareerRecommendationWithClient, type CareerNetClient } from '../lib/careernet';
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
 
 describe('CareerNet detail-based recommendation flow', () => {
-  it('uses JOB_VIEW and MAJOR_VIEW detail responses before building recommendations', async () => {
+  it('uses CareerNet v4.1 job_cd detail and MAJOR_VIEW responses before building recommendations', async () => {
     const calls: Array<Record<string, string | number | undefined>> = [];
     const client: CareerNetClient = async (params) => {
       calls.push(params);
       if (params.svcCode === 'JOB') {
-        return [{ job: '인공지능전문가', jobdicSeq: '123', summary: '목록 설명' }];
+        return [{ job_nm: '인공지능전문가', job_cd: 777, seq: 123, work: '목록 설명' }];
       }
       if (params.svcCode === 'JOB_VIEW') {
-        return [{ job: '인공지능전문가', summary: '상세 직업 설명', similarJob: '데이터과학자', related_major: '컴퓨터공학과, 인공지능학과' }];
+        return [{ baseInfo: { job_nm: '인공지능전문가', rel_job_nm: '데이터과학자', seq: 123 }, workList: [{ work: '상세 직업 설명' }], departList: [{ depart_name: '컴퓨터공학과' }, { depart_name: '인공지능학과' }] }];
       }
       if (params.svcCode === 'MAJOR') {
         return [{ majorSeq: '456', mClass: '컴퓨터공학과' }];
@@ -50,7 +55,7 @@ describe('CareerNet detail-based recommendation flow', () => {
 
     expect(calls).toEqual(expect.arrayContaining([
       expect.objectContaining({ svcCode: 'JOB' }),
-      expect.objectContaining({ svcCode: 'JOB_VIEW', jobdicSeq: '123' }),
+      expect.objectContaining({ svcCode: 'JOB_VIEW', seq: '777' }),
       expect.objectContaining({ svcCode: 'MAJOR' }),
       expect.objectContaining({ svcCode: 'MAJOR_VIEW', majorSeq: '456' }),
       expect.objectContaining({ svcCode: 'COSE' }),
@@ -105,8 +110,8 @@ describe('CareerNet detail-based recommendation flow', () => {
     const client: CareerNetClient = async (params) => {
       calls.push(params);
       if (params.svcCode === 'JOB' && params.searchJobNm === '인공지능 개발자') return [];
-      if (params.svcCode === 'JOB' && params.searchJobNm === '개발자') return [{ job: '시스템소프트웨어개발자', jobdicSeq: '834' }];
-      if (params.svcCode === 'JOB_VIEW') return [{ job: '시스템소프트웨어개발자', summary: '상세 설명' }];
+      if (params.svcCode === 'JOB' && params.searchJobNm === '개발자') return [{ job_nm: '시스템소프트웨어개발자', job_cd: 223, seq: 834 }];
+      if (params.svcCode === 'JOB_VIEW') return [{ baseInfo: { job_nm: '시스템소프트웨어개발자' }, workList: [{ work: '상세 설명' }] }];
       if (params.svcCode === 'MAJOR' && params.searchTitle === '개발자') return [{ majorSeq: '999', mClass: '관광경영과' }];
       if (params.svcCode === 'MAJOR' && params.searchTitle === '컴퓨터') return [{ majorSeq: '569', mClass: '컴퓨터공학과' }];
       if (params.svcCode === 'MAJOR_VIEW' && params.majorSeq === '999') return [{ major: '관광경영과', relate_subject: '사회' }];
@@ -121,12 +126,58 @@ describe('CareerNet detail-based recommendation flow', () => {
     expect(calls).toEqual(expect.arrayContaining([
       expect.objectContaining({ svcCode: 'JOB', searchJobNm: '인공지능 개발자' }),
       expect.objectContaining({ svcCode: 'JOB', searchJobNm: '개발자' }),
-      expect.objectContaining({ svcCode: 'JOB_VIEW', jobdicSeq: '834' }),
+      expect.objectContaining({ svcCode: 'JOB_VIEW', seq: '223' }),
       expect.objectContaining({ svcCode: 'MAJOR', searchTitle: '컴퓨터' }),
       expect.objectContaining({ svcCode: 'COSE', searchTitleWord: '인공지능' })
     ]));
     expect(result.careers[0]).toMatchObject({ name: '시스템소프트웨어개발자', summary: '상세 설명' });
     expect(result.majors[0]).toMatchObject({ name: '컴퓨터공학과' });
     expect(result.learningMaterials[0]).toMatchObject({ title: 'AI 자료 상세', description: '상세 자료' });
+  });
+
+  it('routes CareerNet v4.1 job APIs to front/openapi endpoints and extracts documented response fields', async () => {
+    vi.stubEnv('CAREERNET_API_KEY', 'test-key');
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ jobs: [{ job_nm: '가상현실전문가', seq: 374, work: '3차원 모델링으로 가상시스템을 개발합니다.' }] })
+    } as Response);
+
+    const jobs = await callCareerNet({ svcCode: 'JOB', searchJobNm: '가상현실', thisPage: 1, perPage: 8 });
+
+    const requestedUrl = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(requestedUrl.origin + requestedUrl.pathname).toBe('https://www.career.go.kr/cnet/front/openapi/jobs.json');
+    expect(requestedUrl.searchParams.get('apiKey')).toBe('test-key');
+    expect(requestedUrl.searchParams.get('searchJobNm')).toBe('가상현실');
+    expect(requestedUrl.searchParams.get('pageIndex')).toBe('1');
+    expect(requestedUrl.searchParams.get('thisPage')).toBeNull();
+    expect(requestedUrl.searchParams.get('perPage')).toBeNull();
+    expect(requestedUrl.searchParams.get('svcCode')).toBeNull();
+    expect(jobs).toEqual([{ job_nm: '가상현실전문가', seq: 374, work: '3차원 모델링으로 가상시스템을 개발합니다.' }]);
+  });
+
+  it('routes CareerNet v4.1 job detail and job code APIs to documented front/openapi URLs', async () => {
+    vi.stubEnv('CAREERNET_API_KEY', 'test-key');
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ baseInfo: { job_nm: '물리학연구원', seq: 4 }, workList: [{ work: '자연현상을 연구합니다.' }] })
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ([{ job_cd: 1, job_nm: '관리직' }])
+      } as Response);
+
+    const detail = await callCareerNet({ svcCode: 'JOB_VIEW', seq: 4 });
+    const jobCodes = await callCareerNet({ svcCode: 'JOB_TYPE' });
+
+    const detailUrl = new URL(String(fetchMock.mock.calls[0][0]));
+    const codesUrl = new URL(String(fetchMock.mock.calls[1][0]));
+    expect(detailUrl.origin + detailUrl.pathname).toBe('https://www.career.go.kr/cnet/front/openapi/job.json');
+    expect(detailUrl.searchParams.get('seq')).toBe('4');
+    expect(detailUrl.searchParams.get('svcCode')).toBeNull();
+    expect(codesUrl.origin + codesUrl.pathname).toBe('https://www.career.go.kr/cnet/front/openapi/jobcodes.json');
+    expect(codesUrl.searchParams.get('svcCode')).toBeNull();
+    expect(detail).toEqual([{ baseInfo: { job_nm: '물리학연구원', seq: 4 }, workList: [{ work: '자연현상을 연구합니다.' }] }]);
+    expect(jobCodes).toEqual([{ job_cd: 1, job_nm: '관리직' }]);
   });
 });

@@ -2,10 +2,12 @@
 
 진로 키워드를 입력하면 커리어넷 Open API 기반으로 관련 직업, 학과, 고등학교 선택과목, 진로교육자료를 추천하는 Next.js MVP입니다.
 
-현재 연동 흐름은 `JOB`/`MAJOR` 목록 검색에 그치지 않고, 검색 결과의 `jobdicSeq`와 `majorSeq`로 `JOB_VIEW`/`MAJOR_VIEW` 상세 API까지 조회합니다. 선택과목 추천은 `MAJOR_VIEW` 상세 응답의 `relate_subject`, `subject_description` 값을 우선 사용하고, 응답이 부족할 때만 자체 fallback 규칙을 보정용으로 사용합니다.
+현재 연동 흐름은 커리어넷 Open API v4.1 문서 기준에 맞춰 직업백과는 `/cnet/front/openapi/jobs.json` 목록과 `/cnet/front/openapi/job.json` 상세(`seq`)를 사용하고, 학과정보/진로교육자료/상담사례는 `getOpenApi`의 `MAJOR`/`MAJOR_VIEW`, `COSE`/`COSE_VIEW`, `COUNSEL`/`COUNSEL_VIEW`를 사용합니다. 선택과목 추천은 `MAJOR_VIEW` 상세 응답의 `relate_subject`, `subject_description` 값을 우선 사용하고, 응답이 부족할 때만 자체 fallback 규칙을 보정용으로 사용합니다.
 
 ## v0.5 기능
 
+- 직업백과 API를 v4.1 문서 기준 `/cnet/front/openapi/jobs.json`, `/cnet/front/openapi/job.json?seq=...`, `jobcodes.json` 엔드포인트로 정렬
+- `jobs` 목록 응답, `baseInfo`/`workList`/`departList` 상세 응답, 직업분류 코드표 응답 매핑 검증
 - 원하는 지역(`regionName`)을 입력하면 해당 시도교육청 고등학교 목록을 NEIS `schoolInfo`로 조회
 - 각 학교의 `hisTimetable` 수업내용과 추천 과목을 비교해 실제 시간표에서 확인된 학교만 선별
 - 과목 점수 합산 기준으로 학교를 랭킹하고, 학교별 확인 과목/미확인 과목/주소를 표시

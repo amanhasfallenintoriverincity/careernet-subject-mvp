@@ -1,6 +1,7 @@
 import { buildRecommendation, fallbackRecommendation, type RawCounselingCase, type RawJob, type RawJobType, type RawMajor, type RawMaterial, type StudentProfile } from './recommendation';
 
-const BASE_URL = 'https://www.career.go.kr/cnet/openapi/getOpenApi';
+const OPEN_API_URL = 'https://www.career.go.kr/cnet/openapi/getOpenApi';
+const FRONT_OPEN_API_URL = 'https://www.career.go.kr/cnet/front/openapi';
 const MAX_DETAIL_REQUESTS = 3;
 
 export type CareerNetParams = Record<string, string | number | undefined>;
@@ -35,54 +36,70 @@ function extractContent(json: CareerNetResponse): unknown[] {
   ];
 }
 
+function extractFrontOpenApiContent(json: unknown, params: CareerNetParams): unknown[] {
+  const record = firstRecord(json);
+  if (params.svcCode === 'JOB') return asArray(record.jobs);
+  if (params.svcCode === 'JOB_VIEW') return record && Object.keys(record).length ? [record] : [];
+  if (params.svcCode === 'JOB_TYPE') {
+    if (Array.isArray(json)) return json;
+    return [
+      ...asArray(record.jobs),
+      ...asArray(record.jobcodes),
+      ...asArray(record.content),
+      ...asArray(record.data)
+    ];
+  }
+  return asArray(json);
+}
+
+function isFrontOpenApiRequest(params: CareerNetParams): boolean {
+  return params.svcCode === 'JOB' || params.svcCode === 'JOB_VIEW' || params.svcCode === 'JOB_TYPE';
+}
+
+function buildFrontOpenApiUrl(apiKey: string, params: CareerNetParams): URL {
+  const path = params.svcCode === 'JOB'
+    ? 'jobs.json'
+    : params.svcCode === 'JOB_VIEW'
+      ? 'job.json'
+      : 'jobcodes.json';
+  const url = new URL(`${FRONT_OPEN_API_URL}/${path}`);
+  url.searchParams.set('apiKey', apiKey);
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === '') continue;
+    if (params.svcCode === 'JOB' && key === 'thisPage' && params.pageIndex === undefined) {
+      url.searchParams.set('pageIndex', String(value));
+      continue;
+    }
+    if (key === 'svcCode' || key === 'gubun' || key === 'svcType' || key === 'contentType' || key === 'thisPage' || key === 'perPage') continue;
+    url.searchParams.set(key, String(value));
+  }
+  return url;
+}
+
+function buildOpenApiUrl(apiKey: string, params: CareerNetParams): URL {
+  const url = new URL(OPEN_API_URL);
+  url.searchParams.set('apiKey', apiKey);
+  url.searchParams.set('svcType', 'api');
+  url.searchParams.set('contentType', 'json');
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '') url.searchParams.set(key, String(value));
+  }
+  return url;
+}
+
 export const callCareerNet: CareerNetClient = async (params) => {
   const apiKey = process.env.CAREERNET_API_KEY;
   if (!apiKey) return [];
 
-  let urlString = BASE_URL;
-  const isJob = params.svcCode === 'JOB';
-  const isJobView = params.svcCode === 'JOB_VIEW';
-
-  if (isJob) {
-    urlString = 'https://www.career.go.kr/cnet/front/openapi/jobs.json';
-  } else if (isJobView) {
-    urlString = 'https://www.career.go.kr/cnet/front/openapi/job.json';
-  }
-
-  const url = new URL(urlString);
-  url.searchParams.set('apiKey', apiKey);
-
-  if (!isJob && !isJobView) {
-    url.searchParams.set('svcType', 'api');
-    url.searchParams.set('contentType', 'json');
-  }
-
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === '') continue;
-
-    if (isJob) {
-      if (key === 'thisPage') {
-        url.searchParams.set('pageIndex', String(value));
-      } else if (key === 'perPage') {
-        url.searchParams.set('pageSize', String(value));
-      } else if (key !== 'svcCode' && key !== 'gubun') {
-        url.searchParams.set(key, String(value));
-      }
-    } else if (isJobView) {
-      if (key === 'jobdicSeq') {
-        url.searchParams.set('seq', String(value));
-      } else if (key !== 'svcCode' && key !== 'gubun') {
-        url.searchParams.set(key, String(value));
-      }
-    } else {
-      url.searchParams.set(key, String(value));
-    }
-  }
+  const isFrontRequest = isFrontOpenApiRequest(params);
+  const url = isFrontRequest ? buildFrontOpenApiUrl(apiKey, params) : buildOpenApiUrl(apiKey, params);
 
   const response = await fetch(url, { next: { revalidate: 60 * 60 * 12 } });
   if (!response.ok) throw new Error(`CareerNet API failed: ${response.status}`);
   const json = (await response.json()) as CareerNetResponse;
-  return extractContent(json);
+  return isFrontRequest ? extractFrontOpenApiContent(json, params) : extractContent(json);
 };
 
 function getString(record: Record<string, unknown>, keys: string[]): string {
@@ -102,20 +119,33 @@ function mergeRecords(base: unknown, detail: unknown): Record<string, unknown> {
   return { ...firstRecord(base), ...firstRecord(detail) };
 }
 
+function recordsFrom(value: unknown): Array<Record<string, unknown>> {
+  return asArray(value).map(firstRecord).filter((record) => Object.keys(record).length > 0);
+}
+
+function getNestedString(record: Record<string, unknown>, objectKey: string, keys: string[]): string {
+  return getString(firstRecord(record[objectKey]), keys);
+}
+
+function getFirstRecordString(record: Record<string, unknown>, arrayKey: string, keys: string[]): string {
+  for (const item of recordsFrom(record[arrayKey])) {
+    const value = getString(item, keys);
+    if (value) return value;
+  }
+  return '';
+}
+
+function getJoinedRecordStrings(record: Record<string, unknown>, arrayKey: string, keys: string[]): string {
+  return recordsFrom(record[arrayKey]).map((item) => getString(item, keys)).filter(Boolean).join(', ');
+}
+
 function mapJob(item: unknown): RawJob {
   const record = firstRecord(item);
-  let departNames = '';
-  if (Array.isArray(record.departList)) {
-    departNames = record.departList
-      .map((d: any) => d?.depart_name)
-      .filter((name: any) => typeof name === 'string' && name.trim())
-      .join(', ');
-  }
   const baseInfo = firstRecord(record.baseInfo);
   return {
-    name: getString(record, ['job', 'job_nm', 'jobNm', 'name', 'JOB_NM']) || getString(baseInfo, ['job_nm', 'job', 'emp_job_nm']),
-    summary: getString(record, ['summary', 'work', 'job_summary', 'description', 'jobWork', 'aptitude', 'possibility']) || getString(baseInfo, ['summary', 'work', 'job_summary']),
-    related_major: departNames || getString(record, ['related_major', 'relate_major', 'relateMajor', 'major', 'department']) || getString(baseInfo, ['related_major', 'relate_major', 'relateMajor', 'major', 'department'])
+    name: getString(record, ['job', 'job_nm', 'jobNm', 'name', 'JOB_NM']) || getString(baseInfo, ['job_nm', 'job', 'emp_job_nm', 'name']),
+    summary: getFirstRecordString(record, 'workList', ['work']) || getString(record, ['summary', 'work', 'job_summary', 'description', 'jobWork', 'aptitude', 'possibility']) || getString(baseInfo, ['summary', 'work', 'job_summary']),
+    related_major: getString(record, ['related_major', 'relate_major', 'relateMajor', 'major', 'department']) || getString(baseInfo, ['related_major', 'relate_major', 'relateMajor', 'major', 'department']) || getJoinedRecordStrings(record, 'departList', ['depart_name', 'department', 'major'])
   };
 }
 
@@ -158,8 +188,8 @@ function mapCounselingCase(item: unknown): RawCounselingCase {
 function mapJobType(item: unknown): RawJobType {
   const record = firstRecord(item);
   return {
-    code: getString(record, ['code', 'CODE', 'job_ctg_code', 'jbgp_code', 'CODE_ID']),
-    name: getString(record, ['name', 'CODE_NM', 'job_ctg_nm', 'jbgp_code_nm', 'category', 'profession'])
+    code: getString(record, ['code', 'CODE', 'job_ctg_code', 'jbgp_code', 'CODE_ID', 'job_cd']),
+    name: getString(record, ['name', 'CODE_NM', 'job_ctg_nm', 'jbgp_code_nm', 'category', 'profession', 'job_nm'])
   };
 }
 
@@ -178,7 +208,15 @@ function normalizeTarget(value: string): string {
 
 function getJobSeq(item: unknown): string {
   const record = firstRecord(item);
-  return getString(record, ['job_cd', 'jobdicSeq', 'jobDicSeq', 'job_seq', 'seq', 'jobSeq']);
+  const baseInfo = firstRecord(record.baseInfo);
+  // CareerNet v4.1 job list exposes both `job_cd` (documented 직업코드)
+  // and `seq` (documented 고유번호). The job detail endpoint confusingly
+  // names its required query parameter `seq`, but the manual describes it as
+  // 직업코드, so passing the list `seq` returns a different job's detail.
+  return getString(record, ['job_cd', 'jobCd', 'JOB_CD'])
+    || getString(baseInfo, ['job_cd', 'jobCd', 'JOB_CD'])
+    || getString(record, ['seq', 'jobdicSeq', 'jobDicSeq', 'job_seq', 'jobSeq'])
+    || getString(baseInfo, ['seq']);
 }
 
 function getMajorSeq(item: unknown): string {
@@ -219,15 +257,15 @@ function buildSearchKeywords(keyword: string, mode: 'job' | 'content' = 'content
 async function fetchJobDetails(keyword: string, client: CareerNetClient): Promise<RawJob[]> {
   let list: unknown[] = [];
   for (const searchJobNm of buildSearchKeywords(keyword, 'job')) {
-    list = await client({ svcCode: 'JOB', gubun: 'job_dic_list', searchJobNm, thisPage: 1, perPage: 8 });
+    list = await client({ svcCode: 'JOB', searchJobNm, pageIndex: 1 });
     if (list.length) break;
   }
   const targets = list.slice(0, MAX_DETAIL_REQUESTS);
   const details = await Promise.all(
     targets.map(async (job) => {
-      const jobdicSeq = getJobSeq(job);
-      if (!jobdicSeq) return job;
-      const detail = await client({ svcCode: 'JOB_VIEW', gubun: 'job_dic_list', jobdicSeq });
+      const seq = getJobSeq(job);
+      if (!seq) return job;
+      const detail = await client({ svcCode: 'JOB_VIEW', seq });
       return mergeRecords(job, detail[0]);
     })
   );
@@ -291,7 +329,7 @@ async function fetchCounselingCases(keyword: string, client: CareerNetClient): P
 }
 
 async function fetchJobTypes(client: CareerNetClient): Promise<RawJobType[]> {
-  const types = await client({ svcCode: 'JOB_TYPE', gubun: 'job_dic_list' });
+  const types = await client({ svcCode: 'JOB_TYPE' });
   return types.map(mapJobType).filter((item) => item.code || item.name);
 }
 
