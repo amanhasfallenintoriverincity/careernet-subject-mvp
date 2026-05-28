@@ -27,6 +27,7 @@ export default async function Home({ searchParams }: PageProps) {
   const result = keyword ? await getCareerRecommendation(keyword, { studentProfile }) : null;
   const schoolName = params.schoolName?.trim() || '';
   const regionName = params.regionName?.trim() || '';
+  const hasNeisValues = Boolean(schoolName || regionName);
   const neisOptions = { ay: params.ay || undefined, sem: params.sem || undefined, grade: studentProfile.grade };
   const [schoolContext, regionalSchoolSearch] = result
     ? await Promise.all([
@@ -41,23 +42,39 @@ export default async function Home({ searchParams }: PageProps) {
   return (
     <main className="shell">
       <section className="hero">
-        <p className="eyebrow">CareerNet + NEIS Open API MVP v0.5</p>
-        <h1>진로를 입력하면 나에게 맞는 고등학교 선택과목을 추천해드립니다.</h1>
-        <p className="subtitle">
-          직업정보, 학과정보, 진로교육자료를 연결하고 NEIS 지역 학교 시간표까지 대조해 내게 맞는 과목을 수업하는 학교를 함께 찾아주는 MVP입니다.
-        </p>
+        <div className="hero-copy">
+          <p className="eyebrow">CareerNet + NEIS Open API MVP v0.5</p>
+          <h1>진로를 입력하면 나에게 맞는 고등학교 선택과목을 추천해드립니다.</h1>
+          <p className="subtitle">
+            직업정보, 학과정보, 진로교육자료를 연결하고 NEIS 지역 학교 시간표까지 대조해 내게 맞는 과목을 수업하는 학교를 함께 찾아주는 MVP입니다.
+          </p>
+          <div className="value-props" aria-label="서비스 진행 단계">
+            <span>① 진로 키워드 입력</span>
+            <span>② 선택과목 추천</span>
+            <span>③ 우리 학교·지역 개설 확인</span>
+          </div>
+        </div>
         <form className="search-panel" action="/" method="get">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Start here</p>
+              <h2>30초 진로 맞춤 설정</h2>
+            </div>
+            <span className="badge subtle">저장 없이 조회</span>
+          </div>
           <div className="search-main">
+            <label className="sr-only" htmlFor="keyword">진로 키워드</label>
             <input
+              id="keyword"
               name="keyword"
-              defaultValue={keyword || '인공지능 개발자'}
+              defaultValue={keyword}
               placeholder="예: 인공지능 개발자, 간호사, 웹툰 작가"
               aria-label="진로 키워드"
             />
             <button>추천 받기</button>
           </div>
-          <fieldset className="profile-fields">
-            <legend>나에게 맞춤 설정</legend>
+          <fieldset className="profile-fields compact-fields">
+            <legend>맞춤 추천에 반영할 정보</legend>
             <label>
               학년
               <select name="grade" defaultValue={studentProfile.grade ?? ''}>
@@ -86,25 +103,35 @@ export default async function Home({ searchParams }: PageProps) {
               부담스러운 과목
               <input name="weakSubjects" defaultValue={params.weakSubjects ?? ''} placeholder="예: 물리학Ⅰ" />
             </label>
-            <label>
-              학교명
-              <input name="schoolName" defaultValue={schoolName} placeholder="예: 천안오성고" />
-            </label>
-            <label>
-              찾고 싶은 지역
-              <input name="regionName" defaultValue={regionName} placeholder="예: 충남, 서울, 경기도" />
-            </label>
-            <label>
-              NEIS 조회 학년도/학기
-              <span className="inline-fields">
-                <input name="ay" defaultValue={params.ay ?? '2026'} placeholder="2026" />
-                <select name="sem" defaultValue={params.sem ?? '1'}>
-                  <option value="1">1학기</option>
-                  <option value="2">2학기</option>
-                </select>
-              </span>
-            </label>
           </fieldset>
+          <details className="advanced-fields" open={hasNeisValues}>
+            <summary>
+              <span>학교·지역 개설 여부도 확인하기</span>
+              <small>선택 입력</small>
+            </summary>
+            <fieldset className="profile-fields neis-fields">
+              <legend>NEIS 시간표 조회 조건</legend>
+              <label>
+                학교명
+                <input name="schoolName" defaultValue={schoolName} placeholder="예: 천안오성고" />
+              </label>
+              <label>
+                찾고 싶은 지역
+                <input name="regionName" defaultValue={regionName} placeholder="예: 충남, 서울, 경기도" />
+              </label>
+              <label>
+                NEIS 조회 학년도/학기
+                <span className="inline-fields">
+                  <input name="ay" defaultValue={hasNeisValues ? params.ay ?? '2026' : ''} placeholder="2026" />
+                  <select name="sem" defaultValue={hasNeisValues ? params.sem ?? '1' : ''}>
+                    <option value="">학기 선택</option>
+                    <option value="1">1학기</option>
+                    <option value="2">2학기</option>
+                  </select>
+                </span>
+              </label>
+            </fieldset>
+          </details>
         </form>
         <div className="chips">
           {examples.map((example) => (
@@ -132,15 +159,18 @@ export default async function Home({ searchParams }: PageProps) {
 function EmptyState() {
   return (
     <section className="empty card">
-      <h2>이 MVP에서 확인할 수 있는 것</h2>
-      <ul>
-        <li>진로 키워드 기반 관련 직업</li>
-        <li>관련 학과와 커리어넷 연계 과목</li>
-        <li>학생 입력값을 반영한 강력 추천/추가 추천 선택과목</li>
-        <li>과목별 추천 근거와 데이터 신뢰도</li>
-        <li>NEIS 지역 시간표 기반 추천 과목 개설 학교 찾기</li>
-        <li>추천 진로교육자료와 비슷한 상담사례</li>
-      </ul>
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Preview</p>
+          <h2>이 MVP에서 확인할 수 있는 것</h2>
+        </div>
+      </div>
+      <div className="feature-grid">
+        <article><strong>진로 이해</strong><span>키워드 기반 관련 직업·학과를 요약합니다.</span></article>
+        <article><strong>과목 추천</strong><span>강점/부담 과목을 반영해 강력·추가 추천을 나눕니다.</span></article>
+        <article><strong>근거 확인</strong><span>과목별 추천 근거와 데이터 신뢰도를 함께 보여줍니다.</span></article>
+        <article><strong>학교 찾기</strong><span>NEIS 시간표로 우리 학교·지역 개설 여부를 확인합니다.</span></article>
+      </div>
       <Link className="primary-link" href="/?keyword=인공지능%20개발자&interestArea=ai&preferredSubjects=정보,수학">예시 결과 보기</Link>
     </section>
   );
@@ -177,6 +207,20 @@ function ResultView({
           </div>
         )}
         <p>{result.recommendedSubjects.reason}</p>
+        <div className="recommendation-summary" aria-label="추천 요약">
+          <div>
+            <span>강력 추천</span>
+            <strong>{result.recommendedSubjects.strong.length}개</strong>
+          </div>
+          <div>
+            <span>추가 추천</span>
+            <strong>{result.recommendedSubjects.optional.length}개</strong>
+          </div>
+          <div>
+            <span>근거 과목</span>
+            <strong>{result.recommendedSubjects.scored?.length ?? 0}개</strong>
+          </div>
+        </div>
         <h3>강력 추천 과목</h3>
         <TagList items={result.recommendedSubjects.strong} />
         <h3>추가 추천 과목</h3>

@@ -150,12 +150,22 @@ const INTEREST_AREA_SUBJECTS: Record<NonNullable<StudentProfile['interestArea']>
   general: ['국어', '수학', '영어', '진로와 직업']
 };
 
+function cleanText(value: string): string {
+  return value
+    .replace(/<br\s*\/?\s*>?/gi, ', ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function normalizeText(value: unknown): string {
   if (Array.isArray(value)) return value.map(normalizeText).filter(Boolean).join(', ');
-  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'string') return cleanText(value);
   if (typeof value === 'number') return String(value);
   if (value == null) return '';
-  return String(value).trim();
+  return cleanText(String(value));
 }
 
 function flattenTextValues(value: unknown): string[] {
@@ -179,8 +189,9 @@ function flattenTextValues(value: unknown): string[] {
 
 function splitList(value: unknown): string[] {
   return flattenTextValues(value)
+    .map(cleanText)
     .flatMap((text) => text.split(/[,.，、\/|>\n]+/))
-    .map((part) => part.trim())
+    .map((part) => cleanText(part))
     .filter(Boolean);
 }
 
@@ -336,10 +347,10 @@ export function buildRecommendation(input: RecommendationInput): Recommendation 
       answer: normalizeText(item.answer ?? item.content) || '상세 상담 답변은 커리어넷 상담사례를 확인해 주세요.',
       category: normalizeText(item.category) || undefined
     })),
-    jobTypes: jobTypes.slice(0, 8).map((item) => ({
+    jobTypes: jobTypes.map((item) => ({
       code: normalizeText(item.code ?? item.jbgp_code),
       name: normalizeText(item.name ?? item.jbgp_code_nm)
-    })).filter((item) => item.code || item.name),
+    })).filter((item) => (item.code || item.name) && !/^\d+$/.test(item.name || item.code)).slice(0, 8),
     source: jobs.length || majors.length || materials.length || counselingCases.length || jobTypes.length ? 'careernet' : 'fallback'
   };
 }
