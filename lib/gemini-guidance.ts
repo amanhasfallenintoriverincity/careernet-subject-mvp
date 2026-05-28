@@ -138,7 +138,7 @@ export function buildEvidenceBundle(evidence: GuidanceEvidence) {
 }
 
 export function buildGuidancePrompt(messages: ChatMessage[], intent: GuidanceIntent, evidence: GuidanceEvidence): string {
-  return `당신은 한국 고등학생을 돕는 진로 상담 AI입니다. 반드시 제공된 CareerNet/NEIS 증거만 근거로 답하세요.\n- CareerNet 근거: 관련 직업, 학과, 학과 관련 과목, 진로교육자료, 상담사례\n- NEIS 근거: 학교/지역 시간표에서 확인된 과목과 학교 후보\n- 확인되지 않은 내용은 추정이라고 말하고, API 근거처럼 단정하지 마세요.\n- 답변은 한국어 존댓말로, 학생에게 대화하듯 자연스럽게 작성하세요.\n- 아직 정보가 부족하면 1~3개의 후속 질문을 포함하세요.\n\n사용자 의도:\n${JSON.stringify(intent, null, 2)}\n\n대화:\n${messages.map((message) => `${message.role}: ${message.content}`).join('\n')}\n\nAPI 증거 묶음:\n${JSON.stringify(buildEvidenceBundle(evidence), null, 2)}\n\n답변 형식:\n1. 지금까지 파악한 진로 방향\n2. 추천 과목/이유\n3. NEIS 학교·지역 확인 결과\n4. CareerNet 근거\n5. 다음에 물어볼 질문`;
+  return `당신은 한국 고등학생을 돕는 진로 상담 AI입니다. 반드시 제공된 CareerNet/NEIS 증거만 근거로 답하세요.\n- CareerNet 근거: 관련 직업, 학과, 학과 관련 과목, 진로교육자료, 상담사례\n- NEIS 근거: 학교/지역 시간표에서 확인된 과목과 학교 후보\n- 확인되지 않은 내용은 추정이라고 말하고, API 근거처럼 단정하지 마세요.\n- 답변은 한국어 존댓말로, 학생에게 대화하듯 자연스럽게 작성하세요.\n- 화면은 Markdown을 지원하므로 제목(##), 목록(-), 굵게(**텍스트**)를 사용해 읽기 쉽게 답하세요.\n- 아직 정보가 부족하면 1~3개의 후속 질문을 포함하세요.\n\n사용자 의도:\n${JSON.stringify(intent, null, 2)}\n\n대화:\n${messages.map((message) => `${message.role}: ${message.content}`).join('\n')}\n\nAPI 증거 묶음:\n${JSON.stringify(buildEvidenceBundle(evidence), null, 2)}\n\n답변 형식:\n## 지금까지 파악한 진로 방향\n## 추천 과목과 이유\n## NEIS 학교·지역 확인 결과\n## CareerNet 근거\n## 다음에 물어볼 질문`;
 }
 
 export function buildFallbackGuidance(intent: GuidanceIntent, evidence: GuidanceEvidence): string {

@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { markdownToSafeHtml } from '../lib/markdown';
 import type { GeminiGuidanceResponse } from '../lib/gemini-guidance';
 
 type Message = {
@@ -72,7 +73,11 @@ export function CareerChat() {
           {messages.map((message, index) => (
             <article key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>
               <span>{message.role === 'user' ? '나' : 'AI'}</span>
-              <p>{message.content}</p>
+              {message.role === 'assistant' ? (
+                <div className="markdown-body" dangerouslySetInnerHTML={{ __html: markdownToSafeHtml(message.content) }} />
+              ) : (
+                <p>{message.content}</p>
+              )}
             </article>
           ))}
           {loading && <article className="chat-message assistant"><span>AI</span><p>CareerNet과 NEIS 근거를 확인하고 있습니다...</p></article>}

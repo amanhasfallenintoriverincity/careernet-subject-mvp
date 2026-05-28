@@ -622,7 +622,8 @@ p { color: var(--muted); line-height: 1.72; }
   font-weight: 900;
 }
 
-.chat-message p {
+.chat-message p,
+.chat-message .markdown-body {
   margin: 0;
   padding: 13px 15px;
   border: 1px solid var(--line);
@@ -630,6 +631,53 @@ p { color: var(--muted); line-height: 1.72; }
   background: #fff;
   white-space: pre-wrap;
   line-height: 1.65;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+}
+
+.markdown-body p {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  margin: 0 0 10px;
+}
+
+.markdown-body p:last-child,
+.markdown-body ul:last-child,
+.markdown-body ol:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0 0 10px 1.15rem;
+  padding: 0;
+}
+
+.markdown-body li {
+  margin: 4px 0;
+}
+
+.markdown-body code {
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
+.markdown-body a {
+  color: var(--primary-dark);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .chat-message.user {

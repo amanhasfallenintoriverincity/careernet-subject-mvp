@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCareerRecommendation } from '../../../lib/careernet';
+import { callGeminiText as callGeminiGenerateContent, type GeminiGenerationConfig } from '../../../lib/gemini-api';
 import { buildSchoolSubjectAvailability, findRegionalSubjectSchools, getNeisSchoolContext } from '../../../lib/neis';
 import {
   buildFallbackGuidance,
@@ -13,7 +14,6 @@ import {
 } from '../../../lib/gemini-guidance';
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 function isChatMessage(value: unknown): value is ChatMessage {
   if (!value || typeof value !== 'object') return false;
@@ -27,28 +27,18 @@ function extractJson(text: string): unknown {
   return JSON.parse(raw);
 }
 
-async function callGeminiText(prompt: string, config?: Record<string, unknown>): Promise<string | null> {
+async function callGeminiText(prompt: string, generationConfig?: GeminiGenerationConfig): Promise<string | null> {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) return null;
 
-  const response = await fetch(GEMINI_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey
-    },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.35,
-        ...config
-      }
-    })
+  return callGeminiGenerateContent(prompt, {
+    apiKey,
+    model: GEMINI_MODEL,
+    generationConfig: {
+      temperature: 0.35,
+      ...generationConfig
+    }
   });
-
-  if (!response.ok) throw new Error(`Gemini API failed: ${response.status}`);
-  const json = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-  return json.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('').trim() || null;
 }
 
 async function inferIntent(messages: ChatMessage[]): Promise<{ intent: GuidanceIntent; usedGemini: boolean }> {
@@ -70,7 +60,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '사용자 메시지가 필요합니다.' }, { status: 400 });
   }
 
-  const { intent, usedGemini } = await inferIntent(messages);
+  const { intent } = await inferIntent(messages);
   const recommendation = await getCareerRecommendation(intent.careerKeyword, { studentProfile: intent.studentProfile });
   const neisOptions = { ay: intent.ay, sem: intent.sem, grade: intent.studentProfile?.grade };
   const [schoolContext, regionalSchoolSearch] = await Promise.all([
@@ -86,7 +76,7 @@ export async function POST(request: Request) {
   let source: GeminiGuidanceResponse['source'] = 'fallback';
   try {
     const geminiReply = await callGeminiText(buildGuidancePrompt(messages, intent, evidence));
-    if (geminiReply && usedGemini) {
+    if (geminiReply) {
       reply = geminiReply;
       source = 'gemini';
     }
