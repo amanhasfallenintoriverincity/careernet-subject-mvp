@@ -20,6 +20,14 @@ function asArray(value: unknown): unknown[] {
 }
 
 function extractContent(json: CareerNetResponse): unknown[] {
+  if (json && typeof json === 'object') {
+    if ('jobs' in json) {
+      return asArray(json.jobs);
+    }
+    if ('baseInfo' in json || 'workList' in json) {
+      return [json];
+    }
+  }
   return [
     ...asArray(json.dataSearch?.content),
     ...asArray(json.content),
@@ -31,13 +39,44 @@ export const callCareerNet: CareerNetClient = async (params) => {
   const apiKey = process.env.CAREERNET_API_KEY;
   if (!apiKey) return [];
 
-  const url = new URL(BASE_URL);
+  let urlString = BASE_URL;
+  const isJob = params.svcCode === 'JOB';
+  const isJobView = params.svcCode === 'JOB_VIEW';
+
+  if (isJob) {
+    urlString = 'https://www.career.go.kr/cnet/front/openapi/jobs.json';
+  } else if (isJobView) {
+    urlString = 'https://www.career.go.kr/cnet/front/openapi/job.json';
+  }
+
+  const url = new URL(urlString);
   url.searchParams.set('apiKey', apiKey);
-  url.searchParams.set('svcType', 'api');
-  url.searchParams.set('contentType', 'json');
+
+  if (!isJob && !isJobView) {
+    url.searchParams.set('svcType', 'api');
+    url.searchParams.set('contentType', 'json');
+  }
 
   for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== '') url.searchParams.set(key, String(value));
+    if (value === undefined || value === '') continue;
+
+    if (isJob) {
+      if (key === 'thisPage') {
+        url.searchParams.set('pageIndex', String(value));
+      } else if (key === 'perPage') {
+        url.searchParams.set('pageSize', String(value));
+      } else if (key !== 'svcCode' && key !== 'gubun') {
+        url.searchParams.set(key, String(value));
+      }
+    } else if (isJobView) {
+      if (key === 'jobdicSeq') {
+        url.searchParams.set('seq', String(value));
+      } else if (key !== 'svcCode' && key !== 'gubun') {
+        url.searchParams.set(key, String(value));
+      }
+    } else {
+      url.searchParams.set(key, String(value));
+    }
   }
 
   const response = await fetch(url, { next: { revalidate: 60 * 60 * 12 } });
@@ -65,10 +104,18 @@ function mergeRecords(base: unknown, detail: unknown): Record<string, unknown> {
 
 function mapJob(item: unknown): RawJob {
   const record = firstRecord(item);
+  let departNames = '';
+  if (Array.isArray(record.departList)) {
+    departNames = record.departList
+      .map((d: any) => d?.depart_name)
+      .filter((name: any) => typeof name === 'string' && name.trim())
+      .join(', ');
+  }
+  const baseInfo = firstRecord(record.baseInfo);
   return {
-    name: getString(record, ['job', 'job_nm', 'jobNm', 'name', 'JOB_NM']),
-    summary: getString(record, ['summary', 'work', 'job_summary', 'description', 'jobWork', 'aptitude', 'possibility']),
-    related_major: getString(record, ['related_major', 'relate_major', 'relateMajor', 'major', 'department'])
+    name: getString(record, ['job', 'job_nm', 'jobNm', 'name', 'JOB_NM']) || getString(baseInfo, ['job_nm', 'job', 'emp_job_nm']),
+    summary: getString(record, ['summary', 'work', 'job_summary', 'description', 'jobWork', 'aptitude', 'possibility']) || getString(baseInfo, ['summary', 'work', 'job_summary']),
+    related_major: departNames || getString(record, ['related_major', 'relate_major', 'relateMajor', 'major', 'department']) || getString(baseInfo, ['related_major', 'relate_major', 'relateMajor', 'major', 'department'])
   };
 }
 
@@ -131,7 +178,7 @@ function normalizeTarget(value: string): string {
 
 function getJobSeq(item: unknown): string {
   const record = firstRecord(item);
-  return getString(record, ['jobdicSeq', 'jobDicSeq', 'job_seq', 'seq', 'jobSeq']);
+  return getString(record, ['job_cd', 'jobdicSeq', 'jobDicSeq', 'job_seq', 'seq', 'jobSeq']);
 }
 
 function getMajorSeq(item: unknown): string {
