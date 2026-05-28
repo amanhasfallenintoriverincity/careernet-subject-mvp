@@ -1,8 +1,16 @@
 # 커리어넷 선택과목 추천 MVP
 
-진로 키워드를 입력하면 커리어넷 Open API 기반으로 관련 직업, 학과, 고등학교 선택과목, 진로교육자료를 추천하는 Next.js MVP입니다.
+입력 폼에 진로 키워드를 넣는 방식 대신, Google Gemini API와 대화하며 학생의 관심사·학년·강점 과목·학교/지역 정보를 파악하고 커리어넷 Open API와 NEIS Open API 근거를 종합해 진로와 고등학교 선택과목을 추천하는 Next.js MVP입니다.
 
 현재 연동 흐름은 커리어넷 Open API v4.1 문서 기준에 맞춰 직업백과는 `/cnet/front/openapi/jobs.json` 목록과 `/cnet/front/openapi/job.json` 상세(`seq`)를 사용하고, 학과정보/진로교육자료/상담사례는 `getOpenApi`의 `MAJOR`/`MAJOR_VIEW`, `COSE`/`COSE_VIEW`, `COUNSEL`/`COUNSEL_VIEW`를 사용합니다. 선택과목 추천은 `MAJOR_VIEW` 상세 응답의 `relate_subject`, `subject_description` 값을 우선 사용하고, 응답이 부족할 때만 자체 fallback 규칙을 보정용으로 사용합니다.
+
+## v0.6 기능
+
+- 메인 화면을 입력 폼 기반 추천에서 Gemini 대화형 진로 상담 UI로 전환
+- `/api/chat` 라우트 추가: Gemini가 대화에서 진로 키워드, 학년, 선호/부담 과목, 학교명/지역을 추출
+- 추출된 의도로 CareerNet 추천과 NEIS 학교/지역 시간표 확인을 수행한 뒤 Gemini가 증거 기반 최종 답변 작성
+- Gemini 키가 없거나 API 오류가 있어도 CareerNet/NEIS 근거 요약 기반 fallback 답변 제공
+- 대화 옆 패널에 분석 출처, CareerNet API 사용 여부, 추천 과목, NEIS 확인 상태 표시
 
 ## v0.5 기능
 
@@ -83,24 +91,31 @@ npm run dev
 
 브라우저에서 `http://localhost:3000`을 엽니다.
 
-## 커리어넷/NEIS API 키 설정
+## 커리어넷/NEIS/Gemini API 키 설정
 
 프로젝트 루트에 `.env.local` 파일을 만들고 다음 값을 넣으세요.
 
 ```env
+GEMINI_API_KEY=발급받은_Gemini_API키
 CAREERNET_API_KEY=발급받은_커리어넷_API키
 NEIS_API_KEY=발급받은_NEIS_API키
 ```
 
-API 키가 없거나 응답이 비어 있으면 앱은 자체 fallback 추천 규칙으로 예시 결과를 보여줍니다. NEIS는 일부 샘플/공개 응답이 가능할 수 있지만, 안정적인 운영에는 `NEIS_API_KEY` 설정을 권장합니다.
+`GEMINI_MODEL`을 설정하면 기본 `gemini-2.5-flash` 대신 다른 Gemini 모델을 사용할 수 있습니다.
+
+Gemini 키가 없으면 앱은 대화 내용에서 진로 의도를 규칙 기반으로 추출하고, CareerNet/NEIS 결과를 자체 fallback 문장으로 요약합니다. CareerNet API 키가 없거나 응답이 비어 있으면 자체 fallback 추천 규칙으로 예시 결과를 보여줍니다. NEIS는 일부 샘플/공개 응답이 가능할 수 있지만, 안정적인 운영에는 `NEIS_API_KEY` 설정을 권장합니다.
 
 ## 주요 파일
 
-- `app/page.tsx`: 메인 UI
-- `app/api/recommend/route.ts`: 추천 API 라우트
+- `app/page.tsx`: 메인 랜딩 UI
+- `app/career-chat.tsx`: Gemini 대화형 진로 추천 클라이언트 UI
+- `app/api/chat/route.ts`: Gemini 의도 추출, CareerNet/NEIS 근거 조회, 증거 기반 답변 생성 API
+- `app/api/recommend/route.ts`: 기존 추천 API 라우트
+- `lib/gemini-guidance.ts`: 대화 의도 추출 fallback, Gemini 프롬프트, 증거 번들, fallback 답변 로직
 - `lib/careernet.ts`: 커리어넷 API 호출/응답 매핑
 - `lib/neis.ts`: NEIS API 호출, 학교 컨텍스트 생성, 추천 과목 시간표 매칭, 지역별 과목 개설 학교 검색
 - `lib/recommendation.ts`: 과목 추출과 추천 로직
+- `tests/gemini-guidance.test.ts`: Gemini 대화형 추천 프롬프트/증거 번들 테스트
 - `tests/recommendation.test.ts`: 추천 로직 테스트
 - `tests/careernet.test.ts`: 커리어넷 상세 API 흐름 테스트
 - `tests/neis.test.ts`: NEIS 응답 파싱, 학교 컨텍스트, 시간표 과목 매칭 테스트
