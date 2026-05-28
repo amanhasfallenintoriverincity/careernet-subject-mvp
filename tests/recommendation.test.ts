@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { buildExplorationGroups } from '../lib/exploration-groups';
 import { buildRecommendation, extractSubjects, fallbackRecommendation } from '../lib/recommendation';
 
 describe('CareerNet recommendation MVP logic', () => {
@@ -90,5 +91,40 @@ describe('CareerNet recommendation MVP logic', () => {
     expect(result.source).toBe('fallback');
     expect(result.studentProfile).toEqual({ preferredSubjects: ['정보'] });
     expect(result.recommendedSubjects.strong).toContain('정보');
+  });
+
+  it('groups explored information into brief top-level sections and detailed subgroups', () => {
+    const result = buildRecommendation({
+      keyword: '인공지능 개발자',
+      jobs: [{ name: '인공지능전문가', summary: 'AI 시스템을 연구하고 개발합니다.' }],
+      majors: [{ name: '컴퓨터공학과', summary: '소프트웨어를 배웁니다.', relate_subject: '정보, 미적분' }],
+      materials: [{ title: 'AI 진로자료', url: 'https://example.com/ai' }],
+      counselingCases: [{ question: 'AI 진로 고민', answer: '수학과 정보를 챙겨 보세요.' }],
+      jobTypes: [{ code: '01', name: '정보통신' }]
+    });
+
+    const groups = buildExplorationGroups(result, {
+      school: { name: '천안오성고등학교', officeCode: 'N10', schoolCode: '8140326' },
+      confirmed: [{ subject: '정보', score: 12, evidence: '시간표에서 확인' }],
+      notFound: [{ subject: '데이터 과학', score: 2, evidence: '추가 확인 필요' }],
+      departments: ['소프트웨어과'],
+      tracks: ['공업계열'],
+      summary: '천안오성고등학교 시간표에서 1개 과목을 확인했습니다.'
+    }, {
+      region: { name: '충남', officeCode: 'N10' },
+      matches: [],
+      searchedSchools: 2,
+      requestedSubjects: ['정보', '미적분'],
+      summary: '충남에서 학교를 탐색했습니다.'
+    });
+
+    expect(groups.map((group) => group.title)).toEqual(['추천 과목', '학교·지역 개설 확인', '진로·학과 정보', '자료·상담 사례']);
+    expect(groups[0].summary).toContain('강력 추천');
+    expect(groups[1].subgroups.map((group) => group.title)).toEqual(['우리 학교 시간표', '추가 확인 과목', '지역 학교 후보']);
+    expect(groups[2].summary).toContain('관련 직업 1개');
+    expect(groups[3].subgroups).toEqual(expect.arrayContaining([
+      expect.objectContaining({ title: '추천 진로교육자료', count: 1 }),
+      expect.objectContaining({ title: '비슷한 진로상담 사례', count: 1 })
+    ]));
   });
 });

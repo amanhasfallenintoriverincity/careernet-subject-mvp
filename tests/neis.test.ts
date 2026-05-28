@@ -74,6 +74,30 @@ describe('NEIS school context integration', () => {
     expect(context.source).toBe('neis');
   });
 
+  it('loads and merges classroom and timetable rows for all high-school grades when no grade is selected', async () => {
+    const calls: Array<{ resource: string; params: Record<string, string | number | undefined> }> = [];
+    const client: NeisClient = async (resource, params) => {
+      calls.push({ resource, params });
+      if (resource === 'schoolInfo') {
+        return [{ ATPT_OFCDC_SC_CODE: 'N10', SD_SCHUL_CODE: '8140326', SCHUL_NM: '천안오성고등학교' }];
+      }
+      if (resource === 'tiClrminfo') {
+        return [{ GRADE: params.GRADE, SEM: params.SEM, CLRM_NM: `${params.GRADE}-1` }];
+      }
+      if (resource === 'hisTimetable') {
+        return [{ ITRT_CNTNT: `학년${params.GRADE} 과목`, GRADE: params.GRADE }];
+      }
+      return [];
+    };
+
+    const context = await getNeisSchoolContextWithClient('천안오성고', client, { ay: '2026', sem: '1' });
+
+    expect(calls.filter((call) => call.resource === 'tiClrminfo').map((call) => call.params.GRADE)).toEqual(['1', '2', '3']);
+    expect(calls.filter((call) => call.resource === 'hisTimetable').map((call) => call.params.GRADE)).toEqual(['1', '2', '3']);
+    expect(context.classrooms.map((item) => item.grade)).toEqual(['1', '2', '3']);
+    expect(context.timetableSubjects).toEqual(['학년1 과목', '학년2 과목', '학년3 과목']);
+  });
+
   it('matches recommended subjects against timetable subjects and school departments', () => {
     const recommendation = buildRecommendation({
       keyword: '인공지능 개발자',

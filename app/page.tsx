@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getCareerRecommendation } from '../lib/careernet';
+import { buildExplorationGroups, type ExplorationGroup } from '../lib/exploration-groups';
 import { buildSchoolSubjectAvailability, findRegionalSubjectSchools, getNeisSchoolContext, type RegionalSubjectSchoolSearch, type SchoolSubjectAvailability } from '../lib/neis';
 import { parseStudentProfile } from '../lib/profile';
 import type { Recommendation } from '../lib/recommendation';
@@ -187,6 +188,12 @@ function ResultView({
   regionalSchoolSearch: RegionalSubjectSchoolSearch | null;
   schoolName: string;
 }) {
+  const explorationGroups = buildExplorationGroups(result, schoolAvailability, regionalSchoolSearch);
+  const subjectGroup = explorationGroups.find((group) => group.id === 'subjects')!;
+  const schoolGroup = explorationGroups.find((group) => group.id === 'school')!;
+  const careerGroup = explorationGroups.find((group) => group.id === 'career')!;
+  const resourcesGroup = explorationGroups.find((group) => group.id === 'resources')!;
+
   return (
     <section className="results">
       <div className="card highlight">
@@ -221,172 +228,278 @@ function ResultView({
             <strong>{result.recommendedSubjects.scored?.length ?? 0}개</strong>
           </div>
         </div>
-        <h3>강력 추천 과목</h3>
-        <TagList items={result.recommendedSubjects.strong} />
-        <h3>추가 추천 과목</h3>
-        <TagList items={result.recommendedSubjects.optional} muted />
-        {result.recommendedSubjects.scored && result.recommendedSubjects.scored.length > 0 && (
-          <div className="subject-evidence-list">
-            {result.recommendedSubjects.scored.slice(0, 8).map((subject) => (
-              <article className="subject-evidence" key={subject.name}>
-                <div className="row compact">
-                  <strong>{subject.name}</strong>
-                  <span className="score">점수 {subject.score}</span>
-                </div>
-                <ul>
-                  {subject.evidence.slice(0, 3).map((evidence) => (
-                    <li key={`${subject.name}-${evidence.source}-${evidence.label}`}>{evidence.label}</li>
-                  ))}
-                </ul>
-              </article>
-            ))}
+        <div className="brief-group-header">
+          <div>
+            <p className="eyebrow">탐색 정보 요약</p>
+            <h3>{subjectGroup.title}</h3>
+            <p>{subjectGroup.summary}</p>
           </div>
-        )}
-      </div>
-
-      {schoolAvailability ? (
-        <section className="card school-card">
-          <div className="row">
-            <div>
-              <p className="eyebrow">NEIS 학교 기준 확인</p>
-              <h2>{schoolAvailability.school.name}</h2>
-            </div>
-            <span className="badge">NEIS</span>
-          </div>
-          <p>{schoolAvailability.summary}</p>
-          {(schoolAvailability.departments.length > 0 || schoolAvailability.tracks.length > 0) && (
-            <div className="filter-box">
-              {schoolAvailability.tracks.length > 0 && (
-                <>
-                  <strong>학교 계열</strong>
-                  <TagList items={schoolAvailability.tracks} muted />
-                </>
-              )}
-              {schoolAvailability.departments.length > 0 && (
-                <>
-                  <strong>학교 학과</strong>
-                  <TagList items={schoolAvailability.departments} muted />
-                </>
-              )}
-            </div>
-          )}
-          <div className="grid">
-            <div>
-              <h3>시간표에서 확인된 추천 과목</h3>
-              {schoolAvailability.confirmed.length ? <AvailabilityList items={schoolAvailability.confirmed} /> : <p>현재 조회 범위에서 확인된 추천 과목이 없습니다.</p>}
-            </div>
-            <div>
-              <h3>추가 확인이 필요한 과목</h3>
-              {schoolAvailability.notFound.length ? <AvailabilityList items={schoolAvailability.notFound.slice(0, 8)} muted /> : <p>추천 과목이 모두 시간표에서 확인되었습니다.</p>}
-            </div>
-          </div>
-        </section>
-      ) : schoolName ? (
-        <section className="card school-card">
-          <p className="eyebrow">NEIS 학교 기준 확인</p>
-          <h2>{schoolName}</h2>
-          <p>NEIS에서 학교 또는 시간표 정보를 찾지 못했습니다. 학교명을 공식 명칭으로 다시 입력하거나 학년도/학기를 바꿔 확인해 주세요.</p>
-        </section>
-      ) : null}
-
-      {regionalSchoolSearch ? (
-        <section className="card school-card">
-          <div className="row">
-            <div>
-              <p className="eyebrow">NEIS 지역 학교 찾기</p>
-              <h2>{regionalSchoolSearch.region.name}에서 추천 과목을 수업하는 학교</h2>
-            </div>
-            <span className="badge">NEIS</span>
-          </div>
-          <p>{regionalSchoolSearch.summary}</p>
-          <div className="filter-box">
-            <strong>찾는 과목</strong>
-            <TagList items={regionalSchoolSearch.requestedSubjects.slice(0, 12)} muted />
-          </div>
-          {regionalSchoolSearch.matches.length ? (
+        </div>
+        <div className="subgroup-grid" aria-label="추천 과목 세부 그룹">
+          {subjectGroup.subgroups.map((group) => (
+            <article className="subgroup-card" key={group.title}>
+              <span>{group.title}</span>
+              <strong>{group.count}</strong>
+              <p>{group.summary}</p>
+            </article>
+          ))}
+        </div>
+        <details className="nested-details">
+          <summary>추천 과목 자세히 보기</summary>
+          <h3>강력 추천 과목</h3>
+          <TagList items={result.recommendedSubjects.strong} />
+          <h3>추가 추천 과목</h3>
+          <TagList items={result.recommendedSubjects.optional} muted />
+          {result.recommendedSubjects.scored && result.recommendedSubjects.scored.length > 0 && (
             <div className="subject-evidence-list">
-              {regionalSchoolSearch.matches.map((match) => (
-                <article className="subject-evidence" key={match.school.schoolCode}>
+              {result.recommendedSubjects.scored.slice(0, 8).map((subject) => (
+                <article className="subject-evidence" key={subject.name}>
                   <div className="row compact">
-                    <div>
-                      <strong>{match.school.name}</strong>
-                      {match.school.address && <p>{match.school.address}</p>}
-                    </div>
-                    <span className="score">일치 점수 {match.matchScore}</span>
+                    <strong>{subject.name}</strong>
+                    <span className="score">점수 {subject.score}</span>
                   </div>
-                  <p>확인 과목 {match.confirmed.length}개 · 미확인 추천 과목 {match.notFound.length}개</p>
-                  <AvailabilityList items={match.confirmed.slice(0, 6)} />
+                  <ul>
+                    {subject.evidence.slice(0, 3).map((evidence) => (
+                      <li key={`${subject.name}-${evidence.source}-${evidence.label}`}>{evidence.label}</li>
+                    ))}
+                  </ul>
                 </article>
               ))}
             </div>
-          ) : (
-            <p>현재 조회 범위에서 추천 과목이 확인된 학교가 없습니다. 지역명, 학년도, 학기, 학년을 바꿔 확인해 주세요.</p>
           )}
-        </section>
-      ) : null}
-
-      <div className="grid">
-        <section className="card">
-          <h2>관련 직업</h2>
-          {result.jobTypes.length > 0 && (
-            <div className="filter-box">
-              <strong>커리어넷 직업분류</strong>
-              <TagList items={result.jobTypes.map((type) => type.name || type.code)} muted />
-            </div>
-          )}
-          {result.careers.map((career) => (
-            <article key={career.name} className="item">
-              <h3>{career.name}</h3>
-              <p>{career.summary}</p>
-              {career.relatedMajors.length > 0 && <TagList items={career.relatedMajors} muted />}
-            </article>
-          ))}
-        </section>
-
-        <section className="card">
-          <h2>관련 학과</h2>
-          {result.majors.map((major) => (
-            <article key={major.name} className="item">
-              <h3>{major.name}</h3>
-              <p>{major.summary}</p>
-              <TagList items={major.relatedSubjects.length ? major.relatedSubjects : ['관련 과목 정보 없음']} muted />
-            </article>
-          ))}
-        </section>
+        </details>
       </div>
 
-      <section className="card">
-        <h2>추천 진로교육자료</h2>
-        <div className="materials">
-          {result.learningMaterials.map((material) => (
-            <a key={`${material.title}-${material.url}`} href={material.url} target="_blank" rel="noreferrer">
-              <strong>{material.title}</strong>
-              <div className="meta-row">
-                {material.target && <span>{material.target}</span>}
-                {material.activityType && <span>{material.activityType}</span>}
-                {material.year && <span>{material.year}</span>}
-              </div>
-              {material.description && <span>{material.description}</span>}
-            </a>
-          ))}
-        </div>
-      </section>
+      <ExplorationOverview groups={explorationGroups} />
 
-      {result.counselingCases.length > 0 && (
-        <section className="card">
-          <h2>비슷한 진로상담 사례</h2>
-          <div className="counsel-list">
-            {result.counselingCases.map((item) => (
-              <article className="counsel" key={item.question}>
-                {item.category && <p className="eyebrow">{item.category}</p>}
-                <h3>{item.question}</h3>
-                <p>{item.answer}</p>
+      <details className="card group-card school-card">
+        <summary>
+          <GroupSummary group={schoolGroup} />
+        </summary>
+        <div className="group-body">
+          <div className="subgroup-grid" aria-label="학교·지역 세부 그룹">
+            {schoolGroup.subgroups.map((group) => (
+              <article className="subgroup-card" key={group.title}>
+                <span>{group.title}</span>
+                <strong>{group.count}</strong>
+                <p>{group.summary}</p>
               </article>
             ))}
           </div>
-        </section>
-      )}
+          {schoolAvailability ? (
+            <section className="nested-section">
+              <div className="row">
+                <div>
+                  <p className="eyebrow">NEIS 학교 기준 확인</p>
+                  <h2>{schoolAvailability.school.name}</h2>
+                </div>
+                <span className="badge">NEIS</span>
+              </div>
+              <p>{schoolAvailability.summary}</p>
+              {(schoolAvailability.departments.length > 0 || schoolAvailability.tracks.length > 0) && (
+                <div className="filter-box">
+                  {schoolAvailability.tracks.length > 0 && (
+                    <>
+                      <strong>학교 계열</strong>
+                      <TagList items={schoolAvailability.tracks} muted />
+                    </>
+                  )}
+                  {schoolAvailability.departments.length > 0 && (
+                    <>
+                      <strong>학교 학과</strong>
+                      <TagList items={schoolAvailability.departments} muted />
+                    </>
+                  )}
+                </div>
+              )}
+              <div className="grid">
+                <div>
+                  <h3>시간표에서 확인된 추천 과목</h3>
+                  {schoolAvailability.confirmed.length ? <AvailabilityList items={schoolAvailability.confirmed} /> : <p>현재 조회 범위에서 확인된 추천 과목이 없습니다.</p>}
+                </div>
+                <div>
+                  <h3>추가 확인이 필요한 과목</h3>
+                  {schoolAvailability.notFound.length ? <AvailabilityList items={schoolAvailability.notFound.slice(0, 8)} muted /> : <p>추천 과목이 모두 시간표에서 확인되었습니다.</p>}
+                </div>
+              </div>
+            </section>
+          ) : schoolName ? (
+            <section className="nested-section">
+              <p className="eyebrow">NEIS 학교 기준 확인</p>
+              <h2>{schoolName}</h2>
+              <p>NEIS에서 학교 또는 시간표 정보를 찾지 못했습니다. 학교명을 공식 명칭으로 다시 입력하거나 학년도/학기를 바꿔 확인해 주세요.</p>
+            </section>
+          ) : null}
+
+          {regionalSchoolSearch ? (
+            <section className="nested-section">
+              <div className="row">
+                <div>
+                  <p className="eyebrow">NEIS 지역 학교 찾기</p>
+                  <h2>{regionalSchoolSearch.region.name}에서 추천 과목을 수업하는 학교</h2>
+                </div>
+                <span className="badge">NEIS</span>
+              </div>
+              <p>{regionalSchoolSearch.summary}</p>
+              <div className="filter-box">
+                <strong>찾는 과목</strong>
+                <TagList items={regionalSchoolSearch.requestedSubjects.slice(0, 12)} muted />
+              </div>
+              {regionalSchoolSearch.matches.length ? (
+                <div className="subject-evidence-list">
+                  {regionalSchoolSearch.matches.map((match) => (
+                    <article className="subject-evidence" key={match.school.schoolCode}>
+                      <div className="row compact">
+                        <div>
+                          <strong>{match.school.name}</strong>
+                          {match.school.address && <p>{match.school.address}</p>}
+                        </div>
+                        <span className="score">일치 점수 {match.matchScore}</span>
+                      </div>
+                      <p>확인 과목 {match.confirmed.length}개 · 미확인 추천 과목 {match.notFound.length}개</p>
+                      <AvailabilityList items={match.confirmed.slice(0, 6)} />
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p>현재 조회 범위에서 추천 과목이 확인된 학교가 없습니다. 지역명, 학년도, 학기, 학년을 바꿔 확인해 주세요.</p>
+              )}
+            </section>
+          ) : null}
+        </div>
+      </details>
+
+      <details className="card group-card">
+        <summary>
+          <GroupSummary group={careerGroup} />
+        </summary>
+        <div className="group-body">
+          <div className="subgroup-grid" aria-label="진로·학과 세부 그룹">
+            {careerGroup.subgroups.map((group) => (
+              <article className="subgroup-card" key={group.title}>
+                <span>{group.title}</span>
+                <strong>{group.count}</strong>
+                <p>{group.summary}</p>
+              </article>
+            ))}
+          </div>
+          <div className="grid">
+            <section className="nested-section">
+              <h2>관련 직업</h2>
+              {result.jobTypes.length > 0 && (
+                <div className="filter-box">
+                  <strong>커리어넷 직업분류</strong>
+                  <TagList items={result.jobTypes.map((type) => type.name || type.code)} muted />
+                </div>
+              )}
+              {result.careers.map((career) => (
+                <article key={career.name} className="item">
+                  <h3>{career.name}</h3>
+                  <p>{career.summary}</p>
+                  {career.relatedMajors.length > 0 && <TagList items={career.relatedMajors} muted />}
+                </article>
+              ))}
+            </section>
+
+            <section className="nested-section">
+              <h2>관련 학과</h2>
+              {result.majors.map((major) => (
+                <article key={major.name} className="item">
+                  <h3>{major.name}</h3>
+                  <p>{major.summary}</p>
+                  <TagList items={major.relatedSubjects.length ? major.relatedSubjects : ['관련 과목 정보 없음']} muted />
+                </article>
+              ))}
+            </section>
+          </div>
+        </div>
+      </details>
+
+      <details className="card group-card">
+        <summary>
+          <GroupSummary group={resourcesGroup} />
+        </summary>
+        <div className="group-body">
+          <div className="subgroup-grid" aria-label="자료·상담 세부 그룹">
+            {resourcesGroup.subgroups.map((group) => (
+              <article className="subgroup-card" key={group.title}>
+                <span>{group.title}</span>
+                <strong>{group.count}</strong>
+                <p>{group.summary}</p>
+              </article>
+            ))}
+          </div>
+          <section className="nested-section">
+            <h2>추천 진로교육자료</h2>
+            <div className="materials">
+              {result.learningMaterials.map((material) => (
+                <a key={`${material.title}-${material.url}`} href={material.url} target="_blank" rel="noreferrer">
+                  <strong>{material.title}</strong>
+                  <div className="meta-row">
+                    {material.target && <span>{material.target}</span>}
+                    {material.activityType && <span>{material.activityType}</span>}
+                    {material.year && <span>{material.year}</span>}
+                  </div>
+                  {material.description && <span>{material.description}</span>}
+                </a>
+              ))}
+            </div>
+          </section>
+
+          {result.counselingCases.length > 0 && (
+            <section className="nested-section">
+              <h2>비슷한 진로상담 사례</h2>
+              <div className="counsel-list">
+                {result.counselingCases.map((item) => (
+                  <article className="counsel" key={item.question}>
+                    {item.category && <p className="eyebrow">{item.category}</p>}
+                    <h3>{item.question}</h3>
+                    <p>{item.answer}</p>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      </details>
     </section>
+  );
+}
+
+function ExplorationOverview({ groups }: { groups: ExplorationGroup[] }) {
+  return (
+    <section className="card overview-card" aria-label="탐색 정보 전체 요약">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Exploration map</p>
+          <h2>탐색한 정보를 한눈에 보기</h2>
+        </div>
+        <span className="badge subtle">처음에는 요약만 표시</span>
+      </div>
+      <div className="overview-grid">
+        {groups.map((group) => (
+          <article className="overview-item" key={group.id}>
+            <div>
+              <strong>{group.title}</strong>
+              <p>{group.summary}</p>
+            </div>
+            <span>{group.totalCount}</span>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function GroupSummary({ group }: { group: ExplorationGroup }) {
+  return (
+    <div className="group-summary">
+      <div>
+        <p className="eyebrow">{group.title}</p>
+        <h2>{group.summary}</h2>
+      </div>
+      <span className="score">자세히 보기</span>
+    </div>
   );
 }
 

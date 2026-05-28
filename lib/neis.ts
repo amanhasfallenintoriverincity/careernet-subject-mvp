@@ -3,6 +3,7 @@ import type { ScoredSubject } from './recommendation';
 const NEIS_BASE_URL = 'https://open.neis.go.kr/hub';
 const DEFAULT_YEAR = '2026';
 const DEFAULT_SEMESTER = '1';
+const HIGH_SCHOOL_GRADES = ['1', '2', '3'] as const;
 
 type NeisRow = Record<string, unknown>;
 
@@ -198,13 +199,16 @@ async function getNeisSchoolContextForSchoolWithClient(
   };
   const ay = options.ay ?? DEFAULT_YEAR;
   const sem = options.sem ?? DEFAULT_SEMESTER;
+  const grades = options.grade ? [options.grade] : [...HIGH_SCHOOL_GRADES];
 
-  const [majorRows, trackRows, classroomRows, timetableRows] = await Promise.all([
+  const [majorRows, trackRows, classroomRowsByGrade, timetableRowsByGrade] = await Promise.all([
     client('schoolMajorinfo', common),
     client('schulAflcoinfo', common),
-    client('tiClrminfo', { ...common, AY: ay, SEM: sem, GRADE: options.grade }),
-    client('hisTimetable', { ...common, AY: ay, SEM: sem, GRADE: options.grade })
+    Promise.all(grades.map((grade) => client('tiClrminfo', { ...common, AY: ay, SEM: sem, GRADE: grade }))),
+    Promise.all(grades.map((grade) => client('hisTimetable', { ...common, AY: ay, SEM: sem, GRADE: grade })))
   ]);
+  const classroomRows = classroomRowsByGrade.flat();
+  const timetableRows = timetableRowsByGrade.flat();
 
   const majors = majorRows.map(mapMajor).filter((item) => item.trackName || item.departmentName);
   const tracks = unique([
