@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCareerRecommendation } from '../../../lib/careernet';
-import { callGeminiText as callGeminiGenerateContent, type GeminiGenerationConfig } from '../../../lib/gemini-api';
+import { callGeminiInteraction, type GeminiGenerationConfig, type GeminiTextResult } from '../../../lib/gemini-api';
 import { buildSchoolSubjectAvailability, findRegionalSubjectSchools, getNeisSchoolContext } from '../../../lib/neis';
 import {
   buildFallbackGuidance,
@@ -27,13 +27,18 @@ function extractJson(text: string): unknown {
   return JSON.parse(raw);
 }
 
-async function callGeminiText(prompt: string, generationConfig?: GeminiGenerationConfig): Promise<string | null> {
+async function callGeminiText(
+  prompt: string,
+  generationConfig?: GeminiGenerationConfig,
+  previousInteractionId?: string
+): Promise<GeminiTextResult | null> {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) return null;
 
-  return callGeminiGenerateContent(prompt, {
+  return callGeminiInteraction(prompt, {
     apiKey,
     model: GEMINI_MODEL,
+    previousInteractionId,
     generationConfig: {
       temperature: 0.35,
       ...generationConfig
@@ -43,7 +48,8 @@ async function callGeminiText(prompt: string, generationConfig?: GeminiGeneratio
 
 async function inferIntent(messages: ChatMessage[]): Promise<{ intent: GuidanceIntent; usedGemini: boolean }> {
   try {
-    const text = await callGeminiText(buildIntentExtractionPrompt(messages), { responseMimeType: 'application/json', temperature: 0.1 });
+    const result = await callGeminiText(buildIntentExtractionPrompt(messages), { responseMimeType: 'application/json', temperature: 0.1 });
+    const text = result?.text;
     if (!text) return { intent: fallbackIntentFromMessages(messages), usedGemini: false };
     return { intent: normalizeGuidanceIntent(extractJson(text), messages), usedGemini: true };
   } catch (error) {
@@ -53,8 +59,11 @@ async function inferIntent(messages: ChatMessage[]): Promise<{ intent: GuidanceI
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null) as { messages?: unknown } | null;
+  const body = await request.json().catch(() => null) as { messages?: unknown; previousInteractionId?: unknown } | null;
   const messages = Array.isArray(body?.messages) ? body.messages.filter(isChatMessage).slice(-12) : [];
+  const previousInteractionId = typeof body?.previousInteractionId === 'string' && body.previousInteractionId.trim()
+    ? body.previousInteractionId.trim()
+    : undefined;
 
   if (!messages.length || !messages.some((message) => message.role === 'user')) {
     return NextResponse.json({ error: '사용자 메시지가 필요합니다.' }, { status: 400 });
@@ -74,15 +83,17 @@ export async function POST(request: Request) {
 
   let reply = buildFallbackGuidance(intent, evidence);
   let source: GeminiGuidanceResponse['source'] = 'fallback';
+  let interactionId: string | undefined;
   try {
-    const geminiReply = await callGeminiText(buildGuidancePrompt(messages, intent, evidence));
-    if (geminiReply) {
-      reply = geminiReply;
+    const geminiReply = await callGeminiText(buildGuidancePrompt(messages, intent, evidence), undefined, previousInteractionId);
+    if (geminiReply?.text) {
+      reply = geminiReply.text;
+      interactionId = geminiReply.interactionId;
       source = 'gemini';
     }
   } catch (error) {
     console.error(error);
   }
 
-  return NextResponse.json({ reply, intent, evidence, source } satisfies GeminiGuidanceResponse);
+  return NextResponse.json({ reply, intent, evidence, source, interactionId } satisfies GeminiGuidanceResponse);
 }

@@ -26,6 +26,7 @@ export function CareerChat() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [lastResult, setLastResult] = useState<GeminiGuidanceResponse | null>(null);
+  const [lastInteractionId, setLastInteractionId] = useState<string | undefined>();
 
   async function sendMessage(content: string) {
     const clean = content.trim();
@@ -39,12 +40,13 @@ export function CareerChat() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: nextMessages })
+        body: JSON.stringify({ messages: nextMessages, previousInteractionId: lastInteractionId })
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error ?? '채팅 요청에 실패했습니다.');
       const result = json as GeminiGuidanceResponse;
       setLastResult(result);
+      setLastInteractionId(result.interactionId ?? lastInteractionId);
       setMessages([...nextMessages, { role: 'assistant', content: result.reply }]);
     } catch (error) {
       const message = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';

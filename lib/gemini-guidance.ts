@@ -26,6 +26,7 @@ export type GeminiGuidanceResponse = {
   intent: GuidanceIntent;
   evidence: GuidanceEvidence;
   source: 'gemini' | 'fallback';
+  interactionId?: string;
 };
 
 function cleanText(value: string): string {
