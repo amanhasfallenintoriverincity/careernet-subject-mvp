@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react';
 import { markdownToSafeHtml } from '../lib/markdown';
 import type { GeminiGuidanceResponse } from '../lib/gemini-guidance';
+import { SubjectVisualizer } from './subject-visualizer';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -102,21 +103,7 @@ export function CareerChat() {
         </div>
       </div>
 
-      <aside className="evidence-card card">
-        <p className="eyebrow">Evidence status</p>
-        <h2>근거 확인</h2>
-        {lastResult ? (
-          <div className="evidence-list">
-            <div><strong>분석 출처</strong><span>{lastResult.source === 'gemini' ? 'Gemini API' : 'Fallback 분석'}</span></div>
-            <div><strong>진로 키워드</strong><span>{lastResult.intent.careerKeyword}</span></div>
-            <div><strong>CareerNet</strong><span>{lastResult.evidence.recommendation.source === 'careernet' ? 'API 근거 사용' : 'Fallback 보정'}</span></div>
-            <div><strong>추천 과목</strong><span>{lastResult.evidence.recommendation.recommendedSubjects.strong.join(', ') || '추가 대화 필요'}</span></div>
-            <div><strong>NEIS</strong><span>{lastResult.evidence.schoolAvailability?.summary ?? lastResult.evidence.regionalSchoolSearch?.summary ?? '학교/지역 미입력'}</span></div>
-          </div>
-        ) : (
-          <p className="muted">대화를 시작하면 Gemini가 진로 의도를 파악하고 CareerNet·NEIS 조회 결과를 이곳에 요약합니다.</p>
-        )}
-      </aside>
+      <SubjectVisualizer result={lastResult} />
     </section>
   );
 }
