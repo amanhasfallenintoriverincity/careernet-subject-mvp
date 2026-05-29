@@ -848,6 +848,211 @@ p { color: var(--muted); line-height: 1.72; }
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
 }
 
+.ux-summary-board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.summary-panel,
+.subject-card-strip,
+.next-action-panel {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .78);
+  box-shadow: 0 10px 28px rgba(20, 24, 39, .04);
+}
+
+.summary-panel {
+  padding: 14px;
+}
+
+.summary-panel h3,
+.subject-card-strip h3,
+.next-action-panel h3 {
+  margin: 0;
+  letter-spacing: -0.03em;
+}
+
+.profile-summary dl {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.profile-summary dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--primary-soft);
+}
+
+.profile-summary dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.profile-summary dd {
+  margin: 0;
+  color: var(--primary-dark);
+  font-size: 13px;
+  font-weight: 900;
+  text-align: right;
+}
+
+.summary-panel p,
+.source-summary ul,
+.next-action-panel p {
+  margin: 10px 0 0;
+  color: var(--muted-strong);
+  line-height: 1.55;
+}
+
+.source-summary ul {
+  padding-left: 1rem;
+  font-size: 13px;
+}
+
+.source-summary li + li {
+  margin-top: 6px;
+}
+
+.subject-card-strip {
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.section-heading-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.section-heading-row p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.subject-ux-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.subject-ux-card {
+  display: grid;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.subject-ux-card.confirmed {
+  border-color: rgba(3, 152, 85, .22);
+  background: linear-gradient(180deg, #fff, #f6fffa);
+}
+
+.subject-ux-card.missing {
+  border-color: rgba(181, 71, 8, .22);
+  background: linear-gradient(180deg, #fff, #fffbf6);
+}
+
+.subject-ux-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.subject-ux-topline strong {
+  color: var(--primary-dark);
+}
+
+.subject-ux-card h4 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.04em;
+}
+
+.subject-ux-card p,
+.subject-ux-card small {
+  margin: 0;
+  color: var(--muted-strong);
+  line-height: 1.5;
+}
+
+.subject-ux-card small {
+  font-size: 12px;
+}
+
+.school-status-pill {
+  width: fit-content;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.school-status-pill.confirmed {
+  background: #eafaf2;
+  color: var(--success);
+}
+
+.school-status-pill.missing {
+  background: #fff4e8;
+  color: var(--warning);
+}
+
+.next-action-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.next-question-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.next-question-list button {
+  display: inline-flex;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform .16s ease, filter .16s ease;
+}
+
+.next-question-list button:hover {
+  transform: translateY(-1px);
+  filter: saturate(1.08);
+}
+
+.next-question-list button:disabled {
+  cursor: default;
+  opacity: .7;
+}
+
 /* Visualization Pane */
 .visualization-pane {
   background: var(--bg);
@@ -1308,6 +1513,16 @@ p { color: var(--muted); line-height: 1.72; }
 @media (max-width: 860px) {
   .chat-layout {
     grid-template-columns: 1fr;
+  }
+
+  .ux-summary-board,
+  .subject-ux-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .section-heading-row {
+    align-items: start;
+    flex-direction: column;
   }
 
   .chat-input {

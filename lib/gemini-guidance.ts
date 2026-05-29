@@ -139,14 +139,15 @@ export function buildEvidenceBundle(evidence: GuidanceEvidence) {
 }
 
 export function buildGuidancePrompt(messages: ChatMessage[], intent: GuidanceIntent, evidence: GuidanceEvidence): string {
-  return `당신은 한국 고등학생을 돕는 진로 상담 AI입니다. 반드시 제공된 CareerNet/NEIS 증거만 근거로 답하세요.\n- CareerNet 근거: 관련 직업, 학과, 학과 관련 과목, 진로교육자료, 상담사례\n- NEIS 근거: 학교/지역 시간표에서 확인된 과목과 학교 후보\n- 확인되지 않은 내용은 추정이라고 말하고, API 근거처럼 단정하지 마세요.\n- 답변은 한국어 존댓말로, 학생에게 대화하듯 자연스럽게 작성하세요.\n- 화면은 Markdown을 지원하므로 제목(##), 목록(-), 굵게(**텍스트**)를 사용해 읽기 쉽게 답하세요.\n- 아직 정보가 부족하면 1~3개의 후속 질문을 포함하세요.\n\n사용자 의도:\n${JSON.stringify(intent, null, 2)}\n\n대화:\n${messages.map((message) => `${message.role}: ${message.content}`).join('\n')}\n\nAPI 증거 묶음:\n${JSON.stringify(buildEvidenceBundle(evidence), null, 2)}\n\n답변 형식:\n## 지금까지 파악한 진로 방향\n## 추천 과목과 이유\n## NEIS 학교·지역 확인 결과\n## CareerNet 근거\n## 다음에 물어볼 질문`;
+  return `당신은 한국 고등학생을 돕는 진로 상담 AI입니다. 반드시 제공된 CareerNet/NEIS 증거만 근거로 답하세요.\n- CareerNet 근거: 관련 직업, 학과, 학과 관련 과목, 진로교육자료, 상담사례\n- NEIS 근거: 학교/지역 시간표에서 확인된 과목과 학교 후보\n- 확인되지 않은 내용은 추정이라고 말하고, API 근거처럼 단정하지 마세요.\n- 확인되지 않은 과목은 학교에 없다고 단정하지 말고, "현재 조회 범위에서 확인되지 않았다"고 표현하세요.\n- 답변은 한국어 존댓말로, 학생에게 대화하듯 자연스럽게 작성하세요.\n- 화면은 Markdown을 지원하므로 제목(##), 목록(-), 굵게(**텍스트**)를 사용해 읽기 쉽게 답하세요.\n- 아직 정보가 부족하면 1~3개의 후속 질문을 포함하세요.\n\n사용자 의도:\n${JSON.stringify(intent, null, 2)}\n\n대화:\n${messages.map((message) => `${message.role}: ${message.content}`).join('\n')}\n\nAPI 증거 묶음:\n${JSON.stringify(buildEvidenceBundle(evidence), null, 2)}\n\n답변 형식:\n## 3줄 요약\n1. 결론을 한 문장으로 말하세요.\n2. 가장 중요한 추천 과목 또는 학교 확인 결과를 한 문장으로 말하세요.\n3. 사용자가 바로 할 다음 행동을 한 문장으로 말하세요.\n\n## 지금까지 파악한 진로 방향\n## 추천 과목과 이유\n## NEIS 학교·지역 확인 결과\n## CareerNet 근거\n## 다음 행동`;
 }
 
 export function buildFallbackGuidance(intent: GuidanceIntent, evidence: GuidanceEvidence): string {
   const bundle = buildEvidenceBundle(evidence);
   const subjects = bundle.recommendedSubjects.slice(0, 5).map((subject) => `${subject.name}(점수 ${subject.score})`).join(', ') || '추천 과목 근거 부족';
+  const topSubject = bundle.recommendedSubjects[0]?.name ?? '추천 과목';
   const careers = bundle.careers.slice(0, 3).map((career) => career.name).join(', ') || '관련 직업 정보 부족';
   const school = evidence.schoolAvailability?.summary ?? evidence.regionalSchoolSearch?.summary ?? '학교명이나 지역을 알려주시면 NEIS 시간표와 대조해드릴 수 있습니다.';
 
-  return `지금 대화에서는 ${intent.careerKeyword} 방향을 중심으로 파악했습니다.\n\n추천 과목은 ${subjects}입니다. 이 과목들은 CareerNet 학과 관련 과목, 진로 키워드, 학생 입력 정보를 함께 점수화한 결과입니다.\n\nNEIS 확인 결과: ${school}\n\nCareerNet 근거로는 ${careers} 등의 관련 직업/학과 정보가 연결되었습니다. 더 정확히 추천하려면 관심 있는 학교명, 지역, 좋아하는 과목과 부담스러운 과목을 대화로 알려주세요.`;
+  return `## 3줄 요약\n1. 지금 대화에서는 **${intent.careerKeyword}** 방향을 중심으로 파악했습니다.\n2. 우선 추천 과목은 **${topSubject}** 등이며, CareerNet·진로 키워드·학생 입력을 함께 점수화했습니다.\n3. 다음에는 학교명, 지역, 좋아하는 과목과 부담스러운 과목을 알려주시면 더 정확해집니다.\n\n## 지금까지 파악한 진로 방향\n${intent.careerKeyword} 방향을 중심으로 진로와 과목을 연결해 보았습니다.\n\n## 추천 과목과 이유\n추천 과목은 ${subjects}입니다. 이 과목들은 CareerNet 학과 관련 과목, 진로 키워드, 학생 입력 정보를 함께 점수화한 결과입니다.\n\n## NEIS 학교·지역 확인 결과\nNEIS 확인 결과: ${school}\n\n## CareerNet 근거\nCareerNet 근거로는 ${careers} 등의 관련 직업/학과 정보가 연결되었습니다.\n\n## 다음 행동\n- 학교명이나 지역을 알려주시면 추천 과목이 실제 시간표에서 확인되는지 대조해드릴게요.\n- 희망 학과를 알려주시면 과목 우선순위를 더 좁혀드릴게요.\n- 선생님 상담용 요약이나 2~3학년 로드맵으로도 정리할 수 있어요.`;
 }

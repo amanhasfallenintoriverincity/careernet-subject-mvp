@@ -75,6 +75,9 @@ describe('gemini-guidance', () => {
     expect(prompt).toContain('인공지능전문가');
     expect(prompt).toContain('천안오성고등학교 시간표에서 정보 과목');
     expect(prompt).toContain('컴퓨터공학과 관련 과목');
+    expect(prompt).toContain('## 3줄 요약');
+    expect(prompt).toContain('## 다음 행동');
+    expect(prompt).toContain('확인되지 않은 과목은 학교에 없다고 단정하지 말고');
   });
 
   it('fallback 답변도 증거 기반 요약과 다음 입력 안내를 제공한다', () => {
@@ -82,6 +85,8 @@ describe('gemini-guidance', () => {
     const bundle = buildEvidenceBundle(evidence);
 
     expect(bundle.recommendedSubjects[0].evidence).toContain('컴퓨터공학과 관련 과목');
+    expect(reply).toContain('## 3줄 요약');
+    expect(reply).toContain('## 다음 행동');
     expect(reply).toContain('인공지능 개발자');
     expect(reply).toContain('정보');
     expect(reply).toContain('NEIS 확인 결과');

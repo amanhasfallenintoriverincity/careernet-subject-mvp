@@ -3,12 +3,19 @@
 import { useState, useEffect } from 'react';
 import type { GeminiGuidanceResponse } from '../lib/gemini-guidance';
 import type { ScoredSubject } from '../lib/recommendation';
+import {
+  buildNextQuestionSuggestions,
+  buildStudentProfileSummary,
+  buildSubjectUxCards,
+  summarizeEvidenceSource
+} from '../lib/ux-report';
 
 type SubjectVisualizerProps = {
   result: GeminiGuidanceResponse | null;
+  onAskSuggestion?: (question: string) => void;
 };
 
-export function SubjectVisualizer({ result }: SubjectVisualizerProps) {
+export function SubjectVisualizer({ result, onAskSuggestion }: SubjectVisualizerProps) {
   const [activeTab, setActiveTab] = useState<'map' | 'chart'>('map');
   const [selectedSubject, setSelectedSubject] = useState<ScoredSubject | null>(null);
 
@@ -46,6 +53,10 @@ export function SubjectVisualizer({ result }: SubjectVisualizerProps) {
   const { recommendation, schoolAvailability, regionalSchoolSearch } = result.evidence;
   const keyword = recommendation.keyword || result.intent.careerKeyword || '선택된 진로';
   const scoredSubjects = recommendation.recommendedSubjects.scored || [];
+  const subjectCards = buildSubjectUxCards(result, 4);
+  const profileItems = buildStudentProfileSummary(result.intent);
+  const sourceSummary = summarizeEvidenceSource(result);
+  const nextQuestions = buildNextQuestionSuggestions(result);
   
   // Filter out subjects with score <= 0
   const validSubjects = scoredSubjects.filter(sub => sub.score > 0).slice(0, 7);
@@ -114,6 +125,73 @@ export function SubjectVisualizer({ result }: SubjectVisualizerProps) {
           >
             차트 분석
           </button>
+        </div>
+      </div>
+
+      <div className="ux-summary-board" aria-label="진로 상담 요약">
+        <div className="summary-panel profile-summary">
+          <h3>학생 상황</h3>
+          {profileItems.length > 0 ? (
+            <dl>
+              {profileItems.map((item) => (
+                <div key={item.label}>
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p>학년, 학교명, 좋아하는 과목을 알려주시면 더 정확해져요.</p>
+          )}
+        </div>
+
+        <div className="summary-panel source-summary">
+          <h3>이 답변의 근거</h3>
+          <ul>
+            <li>{sourceSummary.ai}</li>
+            <li>{sourceSummary.careernet}</li>
+            <li>{sourceSummary.neis}</li>
+          </ul>
+        </div>
+      </div>
+
+      {subjectCards.length > 0 && (
+        <section className="subject-card-strip" aria-label="추천 과목 카드">
+          <div className="section-heading-row">
+            <div>
+              <span className="eyebrow">Priority Cards</span>
+              <h3>바로 볼 추천 과목</h3>
+            </div>
+            <p>추천 이유와 학교 확인 상태를 함께 봅니다.</p>
+          </div>
+          <div className="subject-ux-grid">
+            {subjectCards.map((card) => (
+              <article key={card.name} className={`subject-ux-card ${card.schoolStatusTone}`}>
+                <div className="subject-ux-topline">
+                  <span>{card.priorityLabel}</span>
+                  <strong>{card.score}점</strong>
+                </div>
+                <h4>{card.name}</h4>
+                <p>{card.reason}</p>
+                <div className={`school-status-pill ${card.schoolStatusTone}`}>{card.schoolStatus}</div>
+                <small>{card.schoolStatusDetail}</small>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className="next-action-panel" aria-label="다음 질문 추천">
+        <div>
+          <span className="eyebrow">Next Steps</span>
+          <h3>다음에 이렇게 물어보세요</h3>
+        </div>
+        <div className="next-question-list">
+          {nextQuestions.map((question) => (
+            <button key={question} type="button" onClick={() => onAskSuggestion?.(question)} disabled={!onAskSuggestion}>
+              {question}
+            </button>
+          ))}
         </div>
       </div>
 

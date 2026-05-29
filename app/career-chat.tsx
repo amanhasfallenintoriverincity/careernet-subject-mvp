@@ -103,7 +103,7 @@ export function CareerChat() {
         </div>
       </div>
 
-      <SubjectVisualizer result={lastResult} />
+      <SubjectVisualizer result={lastResult} onAskSuggestion={(question) => void sendMessage(question)} />
     </section>
   );
 }
