@@ -13,7 +13,7 @@ import {
   type GuidanceIntent
 } from '../../../lib/gemini-guidance';
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemma-4-26b-a4b-it';
 
 function isChatMessage(value: unknown): value is ChatMessage {
   if (!value || typeof value !== 'object') return false;
