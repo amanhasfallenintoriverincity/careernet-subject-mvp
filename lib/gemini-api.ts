@@ -126,6 +126,9 @@ export async function callGeminiInteraction(
   });
   const response = await fetch(request.url, request.init);
 
-  if (!response.ok) throw new Error(`Gemini Interactions API failed: ${response.status}`);
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => '');
+    throw new Error(`Gemini Interactions API failed: ${response.status}${errorBody ? ` ${errorBody}` : ''}`);
+  }
   return extractGeminiInteractionText(await response.json());
 }

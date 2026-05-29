@@ -48,7 +48,7 @@ async function callGeminiText(
 
 async function inferIntent(messages: ChatMessage[]): Promise<{ intent: GuidanceIntent; usedGemini: boolean }> {
   try {
-    const result = await callGeminiText(buildIntentExtractionPrompt(messages), { responseMimeType: 'application/json', temperature: 0.1 });
+    const result = await callGeminiText(buildIntentExtractionPrompt(messages), { temperature: 0.1 });
     const text = result?.text;
     if (!text) return { intent: fallbackIntentFromMessages(messages), usedGemini: false };
     return { intent: normalizeGuidanceIntent(extractJson(text), messages), usedGemini: true };
