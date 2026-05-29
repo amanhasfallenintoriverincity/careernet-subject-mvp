@@ -64,7 +64,7 @@ export function fallbackIntentFromMessages(messages: ChatMessage[]): GuidanceInt
     careerKeyword: cleanKeyword(careerMatch).slice(0, 40) || '진로 탐색',
     schoolName,
     regionName,
-    ay: '2026',
+    ay: '2025',
     sem: '1',
     studentProfile: {
       grade: grade as StudentProfile['grade'],

@@ -63,7 +63,7 @@ export function CareerChat() {
   }
 
   return (
-    <section className="chat-layout" aria-label="Gemini 대화형 진로 추천">
+    <main className="chat-layout" aria-label="Gemini 대화형 진로 추천">
       <div className="chat-card card">
         <div className="panel-heading">
           <div>
@@ -72,6 +72,7 @@ export function CareerChat() {
           </div>
           <span className="badge subtle">CareerNet + NEIS 근거</span>
         </div>
+        
         <div className="chat-window" aria-live="polite">
           {messages.map((message, index) => (
             <article key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>
@@ -83,27 +84,55 @@ export function CareerChat() {
               )}
             </article>
           ))}
-          {loading && <article className="chat-message assistant"><span>AI</span><p>CareerNet과 NEIS 근거를 확인하고 있습니다...</p></article>}
+          {loading && (
+            <article className="chat-message assistant">
+              <span>AI</span>
+              <p>CareerNet과 NEIS 근거를 확인하고 있습니다...</p>
+            </article>
+          )}
         </div>
-        <form className="chat-input" onSubmit={onSubmit}>
-          <label className="sr-only" htmlFor="chat-message">진로 상담 메시지</label>
-          <textarea
-            id="chat-message"
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="예: 고2이고 정보·수학을 좋아해요. AI 개발자 진로와 우리 학교 과목을 확인해줘."
-            rows={3}
-          />
-          <button disabled={loading || !input.trim()}>{loading ? '분석 중' : '보내기'}</button>
-        </form>
-        <div className="chips chat-starters" aria-label="예시 질문">
-          {starterPrompts.map((prompt) => (
-            <button key={prompt} type="button" onClick={() => void sendMessage(prompt)} disabled={loading}>{prompt}</button>
-          ))}
+
+        <div className="chat-input-area">
+          {(!messages.some(m => m.role === 'user') && !input.trim()) && (
+            <div className="chips chat-starters" aria-label="예시 질문">
+              {starterPrompts.map((prompt) => (
+                <button 
+                  key={prompt} 
+                  type="button" 
+                  onClick={() => void sendMessage(prompt)} 
+                  disabled={loading}
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          )}
+          <form className="chat-input" onSubmit={onSubmit}>
+            <label className="sr-only" htmlFor="chat-message">진로 상담 메시지</label>
+            <textarea
+              id="chat-message"
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder="예: 고2이고 정보·수학을 좋아해요. AI 개발자 진로와 우리 학교 과목을 확인해줘."
+              rows={1}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void sendMessage(input);
+                }
+              }}
+            />
+            <button disabled={loading || !input.trim()} aria-label="보내기">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </button>
+          </form>
         </div>
       </div>
 
       <SubjectVisualizer result={lastResult} onAskSuggestion={(question) => void sendMessage(question)} />
-    </section>
+    </main>
   );
 }
