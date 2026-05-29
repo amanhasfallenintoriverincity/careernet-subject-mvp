@@ -5,6 +5,8 @@ import type { GeminiGuidanceResponse } from '../lib/gemini-guidance';
 import type { ScoredSubject } from '../lib/recommendation';
 import {
   buildNextQuestionSuggestions,
+  buildPdfReportFileName,
+  buildPdfReportViewModel,
   buildStudentProfileSummary,
   buildSubjectUxCards,
   summarizeEvidenceSource
@@ -57,7 +59,19 @@ export function SubjectVisualizer({ result, onAskSuggestion }: SubjectVisualizer
   const profileItems = buildStudentProfileSummary(result.intent);
   const sourceSummary = summarizeEvidenceSource(result);
   const nextQuestions = buildNextQuestionSuggestions(result);
-  
+  const pdfReport = buildPdfReportViewModel(result);
+  const pdfFileName = buildPdfReportFileName(result);
+
+  function onPrintPdfReport() {
+    if (typeof window === 'undefined') return;
+    const previousTitle = document.title;
+    document.title = pdfFileName.replace(/\.pdf$/i, '');
+    window.print();
+    window.setTimeout(() => {
+      document.title = previousTitle;
+    }, 500);
+  }
+
   // Filter out subjects with score <= 0
   const validSubjects = scoredSubjects.filter(sub => sub.score > 0).slice(0, 7);
 
@@ -194,6 +208,56 @@ export function SubjectVisualizer({ result, onAskSuggestion }: SubjectVisualizer
           ))}
         </div>
       </div>
+
+      <section className="pdf-report-panel" aria-label="PDF 보고서 만들기">
+        <div className="pdf-report-actions screen-only">
+          <div>
+            <span className="eyebrow">PDF Report</span>
+            <h3>상담 결과 PDF 보고서</h3>
+            <p>학생 상황, 추천 과목, 학교 확인 결과, 다음 행동을 한 장 보고서로 정리합니다.</p>
+          </div>
+          <button type="button" onClick={onPrintPdfReport}>PDF 보고서 저장</button>
+        </div>
+
+        <article className="pdf-report-print-area" aria-label="인쇄용 진로 선택과목 보고서">
+          <header className="pdf-report-header">
+            <span>{pdfReport.generatedAtLabel}</span>
+            <h2>{pdfReport.title}</h2>
+            <p>{pdfReport.subtitle}</p>
+          </header>
+
+          {pdfReport.subjects.length > 0 && (
+            <section className="pdf-report-section">
+              <h3>핵심 추천 과목</h3>
+              <div className="pdf-subject-table" role="table" aria-label="PDF 추천 과목 표">
+                <div className="pdf-subject-row header" role="row">
+                  <span role="columnheader">과목</span>
+                  <span role="columnheader">추천</span>
+                  <span role="columnheader">학교 확인</span>
+                </div>
+                {pdfReport.subjects.slice(0, 6).map((subject) => (
+                  <div className="pdf-subject-row" role="row" key={subject.name}>
+                    <strong role="cell">{subject.name}</strong>
+                    <span role="cell">{subject.priorityLabel} · {subject.score}점</span>
+                    <span role="cell">{subject.schoolStatus}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {pdfReport.sections.map((section) => (
+            <section className="pdf-report-section" key={section.heading}>
+              <h3>{section.heading}</h3>
+              <ul>
+                {section.items.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </article>
+      </section>
 
       <div className="visualization-pane">
         {activeTab === 'map' ? (

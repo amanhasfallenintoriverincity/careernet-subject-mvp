@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildNextQuestionSuggestions,
+  buildPdfReportFileName,
+  buildPdfReportViewModel,
   buildStudentProfileSummary,
   buildSubjectUxCards,
   summarizeEvidenceSource
@@ -118,5 +120,25 @@ describe('ux-report helpers', () => {
       careernet: '진로 정보: 커리어넷 API 근거를 사용했어요.',
       neis: '학교 과목: 천안오성고등학교 시간표와 대조했어요.'
     });
+  });
+
+  it('PDF 보고서에 필요한 제목, 섹션, 추천 과목, 주의 문구를 만든다', () => {
+    const report = buildPdfReportViewModel(baseResult);
+
+    expect(report.title).toBe('AI 개발자 진로 선택과목 보고서');
+    expect(report.subtitle).toBe('천안오성고등학교 · 고2');
+    expect(report.sections.map((section) => section.heading)).toEqual([
+      '학생 상황',
+      '추천 과목 요약',
+      '학교 개설 확인',
+      '근거와 주의사항',
+      '다음 행동'
+    ]);
+    expect(report.subjects[0]).toMatchObject({ name: '정보', schoolStatus: '학교 시간표 확인됨' });
+    expect(report.sections.find((section) => section.heading === '근거와 주의사항')?.items.join(' ')).toContain('학교에 없다고 단정하지 않습니다');
+  });
+
+  it('PDF 저장용 파일명을 한글/공백 없이 안전하게 만든다', () => {
+    expect(buildPdfReportFileName(baseResult)).toBe('career-report-AI-개발자-천안오성고등학교.pdf');
   });
 });

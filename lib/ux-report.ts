@@ -24,6 +24,20 @@ export type StudentProfileSummaryItem = {
   value: string;
 };
 
+export type PdfReportSection = {
+  heading: string;
+  items: string[];
+};
+
+export type PdfReportViewModel = {
+  title: string;
+  subtitle: string;
+  generatedAtLabel: string;
+  profile: StudentProfileSummaryItem[];
+  subjects: SubjectUxCard[];
+  sections: PdfReportSection[];
+};
+
 function normalizeSubject(value: string): string {
   return value.replace(/\s+/g, '').trim().toLowerCase();
 }
@@ -147,4 +161,85 @@ export function buildNextQuestionSuggestions(result: GeminiGuidanceResponse): st
     '컴퓨터공학과/AI학과 기준으로 과목 우선순위를 다시 정리해줘',
     '선생님 상담 때 보여줄 요약으로 정리해줘'
   ];
+}
+
+function getProfileValue(profile: StudentProfileSummaryItem[], label: string): string | undefined {
+  return profile.find((item) => item.label === label)?.value;
+}
+
+function joinOrFallback(values: string[], fallback: string): string {
+  return values.length ? values.join(', ') : fallback;
+}
+
+function sanitizeFileNamePart(value: string): string {
+  return value
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w가-힣.-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    || 'report';
+}
+
+export function buildPdfReportViewModel(result: GeminiGuidanceResponse): PdfReportViewModel {
+  const keyword = result.intent.careerKeyword || result.evidence.recommendation.keyword || '진로';
+  const profile = buildStudentProfileSummary(result.intent);
+  const subjects = buildSubjectUxCards(result, 8);
+  const nextQuestions = buildNextQuestionSuggestions(result);
+  const sourceSummary = summarizeEvidenceSource(result);
+  const grade = getProfileValue(profile, '학년');
+  const school = getProfileValue(profile, '학교');
+  const region = getProfileValue(profile, '지역');
+  const confirmed = result.evidence.schoolAvailability?.confirmed.map((item) => item.subject) ?? [];
+  const notFound = result.evidence.schoolAvailability?.notFound.map((item) => item.subject) ?? [];
+  const subtitleParts = [school, region && !school ? region : undefined, grade].filter((value): value is string => Boolean(value));
+
+  return {
+    title: `${keyword} 진로 선택과목 보고서`,
+    subtitle: subtitleParts.join(' · ') || '학생 맞춤 진로 선택과목 요약',
+    generatedAtLabel: 'CareerNet·NEIS·Gemini 근거 기반 자동 보고서',
+    profile,
+    subjects,
+    sections: [
+      {
+        heading: '학생 상황',
+        items: profile.length
+          ? profile.map((item) => `${item.label}: ${item.value}`)
+          : ['학년, 학교명, 관심 과목을 입력하면 더 정밀한 보고서를 만들 수 있습니다.']
+      },
+      {
+        heading: '추천 과목 요약',
+        items: subjects.length
+          ? subjects.map((subject) => `${subject.priorityLabel} · ${subject.name}: ${subject.reason}`)
+          : ['아직 추천 과목 점수가 충분하지 않습니다. 희망 진로와 관심 과목을 더 알려주세요.']
+      },
+      {
+        heading: '학교 개설 확인',
+        items: [
+          `확인된 과목: ${joinOrFallback(confirmed, '아직 없음')}`,
+          `현재 조회 범위에서 미확인: ${joinOrFallback(notFound, '아직 없음')}`,
+          result.evidence.schoolAvailability?.summary ?? result.evidence.regionalSchoolSearch?.summary ?? '학교명이나 지역을 알려주시면 NEIS 시간표와 대조할 수 있습니다.'
+        ]
+      },
+      {
+        heading: '근거와 주의사항',
+        items: [
+          sourceSummary.ai,
+          sourceSummary.careernet,
+          sourceSummary.neis,
+          '현재 조회 범위에서 미확인된 과목은 학교에 없다고 단정하지 않습니다. 실제 선택과목 안내표와 담임/진로 선생님 확인이 필요합니다.'
+        ]
+      },
+      {
+        heading: '다음 행동',
+        items: nextQuestions
+      }
+    ]
+  };
+}
+
+export function buildPdfReportFileName(result: GeminiGuidanceResponse): string {
+  const keyword = result.intent.careerKeyword || result.evidence.recommendation.keyword || 'career';
+  const schoolOrRegion = result.intent.schoolName || result.intent.regionName || 'student';
+  return `career-report-${sanitizeFileNamePart(keyword)}-${sanitizeFileNamePart(schoolOrRegion)}.pdf`;
 }
