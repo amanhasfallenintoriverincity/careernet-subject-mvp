@@ -1,7 +1,7 @@
 import type { ScoredSubject } from './recommendation';
 
 const NEIS_BASE_URL = 'https://open.neis.go.kr/hub';
-const DEFAULT_YEAR = '2026';
+const DEFAULT_YEAR = '2025';
 const DEFAULT_SEMESTER = '1';
 const HIGH_SCHOOL_GRADES = ['1', '2', '3'] as const;
 
