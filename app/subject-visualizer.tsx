@@ -73,22 +73,41 @@ export function SubjectVisualizer({ result, onAskSuggestion }: SubjectVisualizer
   }
 
   // Filter out subjects with score <= 0
-  const validSubjects = scoredSubjects.filter(sub => sub.score > 0).slice(0, 7);
+  const chartSubjects = scoredSubjects.filter(sub => sub.score > 0).slice(0, 7);
+  const tableSubjects = scoredSubjects.filter(sub => sub.score > 0).slice(0, 15);
 
-  // SVG network configuration
-  const center = { x: 200, y: 120 };
-  const radius = 95;
-  const nodes = validSubjects.map((subject, index) => {
-    const count = validSubjects.length;
-    const angle = (index * 2 * Math.PI) / count - Math.PI / 2;
-    const x = center.x + radius * Math.cos(angle);
-    const y = center.y + radius * Math.sin(angle);
-    return {
-      subject,
-      x,
-      y,
-    };
+  const getSubjectCategory = (name: string): string => {
+    const cleanName = name.replace(/\s+/g, '');
+    if (/국어|화법|독서|작문|문학|매체|고전읽기|언어/g.test(cleanName)) return '국어';
+    if (/수학|대수|미적분|기하|확률|통계|해석|대수학/g.test(cleanName)) return '수학';
+    if (/영어|독해|회화|영미/g.test(cleanName)) return '영어';
+    if (/사회|문화|윤리|사상|역사|지리|세계사|동아시아|정치|법|경제|현대사회/g.test(cleanName)) return '사회';
+    if (/과학|물리|화학|생명|지구|실험|융합|우주/g.test(cleanName)) return '과학';
+    return '정보/기타';
+  };
+
+  const categories = ['국어', '수학', '영어', '사회', '과학', '정보/기타'];
+
+  const groupedSubjects = categories.reduce((acc, cat) => {
+    acc[cat] = [];
+    return acc;
+  }, {} as Record<string, typeof tableSubjects>);
+
+  tableSubjects.forEach(sub => {
+    const cat = getSubjectCategory(sub.name);
+    groupedSubjects[cat].push(sub);
   });
+
+  const getCategoryClass = (category: string): string => {
+    switch (category) {
+      case '국어': return 'korean';
+      case '수학': return 'math';
+      case '영어': return 'english';
+      case '사회': return 'social';
+      case '과학': return 'science';
+      default: return 'other';
+    }
+  };
 
   const getSourceIcon = (source: string) => {
     switch (source) {
@@ -130,7 +149,7 @@ export function SubjectVisualizer({ result, onAskSuggestion }: SubjectVisualizer
             className={activeTab === 'map' ? 'active' : ''} 
             onClick={() => setActiveTab('map')}
           >
-            컨셉 맵
+            과목 매칭
           </button>
           <button 
             type="button" 
@@ -262,92 +281,41 @@ export function SubjectVisualizer({ result, onAskSuggestion }: SubjectVisualizer
       <div className="visualization-pane">
         {activeTab === 'map' ? (
           <div className="network-container">
-            <svg viewBox="0 0 400 240" className="network-svg">
-              <defs>
-                <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="var(--primary)" stopOpacity="0" />
-                </radialGradient>
-                <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="var(--primary)" />
-                  <stop offset="100%" stopColor="var(--accent)" />
-                </linearGradient>
-              </defs>
-
-              {/* Glowing background for center */}
-              <circle cx={center.x} cy={center.y} r="60" fill="url(#centerGlow)" />
-
-              {/* Connection lines */}
-              {nodes.map((node, i) => {
-                const isSelected = selectedSubject?.name === node.subject.name;
-                const strokeWidth = Math.max(1, Math.min(4, node.subject.score / 3));
-                return (
-                  <line
-                    key={`line-${i}`}
-                    x1={center.x}
-                    y1={center.y}
-                    x2={node.x}
-                    y2={node.y}
-                    stroke={isSelected ? 'var(--primary)' : 'var(--line-strong)'}
-                    strokeWidth={isSelected ? strokeWidth + 1.5 : strokeWidth}
-                    strokeDasharray={node.subject.tier === 'strong' ? 'none' : '4,3'}
-                    className={`conn-line ${isSelected ? 'selected' : ''}`}
-                  />
-                );
-              })}
-
-              {/* Center node */}
-              <g className="center-node">
-                <circle cx={center.x} cy={center.y} r="40" className="center-circle" />
-                <text 
-                  x={center.x} 
-                  y={center.y + 4} 
-                  textAnchor="middle" 
-                  className="center-text"
-                >
-                  {keyword.length > 5 ? `${keyword.slice(0, 5)}..` : keyword}
-                </text>
-              </g>
-
-              {/* Outer nodes */}
-              {nodes.map((node, i) => {
-                const isSelected = selectedSubject?.name === node.subject.name;
-                const nodeRadius = 14 + Math.min(8, node.subject.score);
-                const isStrong = node.subject.tier === 'strong';
-                
-                return (
-                  <g 
-                    key={`node-${i}`} 
-                    className={`subject-node ${isSelected ? 'selected' : ''} ${isStrong ? 'strong' : 'optional'}`}
-                    onClick={() => setSelectedSubject(node.subject)}
-                  >
-                    <circle 
-                      cx={node.x} 
-                      cy={node.y} 
-                      r={nodeRadius} 
-                      className="node-circle"
-                    />
-                    <text 
-                      x={node.x} 
-                      y={node.y + nodeRadius + 14} 
-                      textAnchor="middle" 
-                      className="node-label"
-                    >
-                      {node.subject.name}
-                    </text>
-                    <text
-                      x={node.x}
-                      y={node.y + 4}
-                      textAnchor="middle"
-                      className="node-score-num"
-                    >
-                      {node.subject.score}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
-            <div className="network-legend">
+            <div className="subject-table-card">
+              <div className="subject-table-header">
+                <span>일반 선택</span>
+              </div>
+              <div className="subject-table-body">
+                {categories.map(category => {
+                  const subjects = groupedSubjects[category];
+                  if (subjects.length === 0) return null;
+                  return (
+                    <div key={category} className="subject-table-row">
+                      <div className={`subject-category-cell ${getCategoryClass(category)}`}>
+                        {category}
+                      </div>
+                      <div className="subject-badges-cell">
+                        {subjects.map(sub => {
+                          const isSelected = selectedSubject?.name === sub.name;
+                          const isStrong = sub.tier === 'strong';
+                          return (
+                            <button
+                              key={sub.name}
+                              type="button"
+                              className={`subject-table-badge ${isStrong ? 'strong' : 'optional'} ${isSelected ? 'selected' : ''}`}
+                              onClick={() => setSelectedSubject(sub)}
+                            >
+                              {isStrong ? `★ ${sub.name}` : sub.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="subject-table-legend">
               <span><span className="dot strong"></span>핵심 추천 과목</span>
               <span><span className="dot optional"></span>추천 과목</span>
             </div>
@@ -355,19 +323,22 @@ export function SubjectVisualizer({ result, onAskSuggestion }: SubjectVisualizer
         ) : (
           <div className="chart-container">
             <div className="bar-chart">
-              {validSubjects.map((sub, index) => {
-                const maxScore = Math.max(...validSubjects.map(s => s.score), 10);
+              {chartSubjects.map((sub, index) => {
+                const maxScore = Math.max(...chartSubjects.map(s => s.score), 10);
                 const percentage = Math.min(100, (sub.score / maxScore) * 100);
                 const isSelected = selectedSubject?.name === sub.name;
                 
                 return (
-                  <div 
+                  <button 
                     key={sub.name} 
+                    type="button"
                     className={`chart-row ${isSelected ? 'selected' : ''}`}
                     onClick={() => setSelectedSubject(sub)}
                   >
                     <div className="chart-label">
-                      <span className={`tier-badge ${sub.tier}`}>{sub.tier === 'strong' ? '핵심' : '일반'}</span>
+                      <span className={`tier-badge ${sub.tier}`}>
+                        {sub.tier === 'strong' ? '핵심' : sub.tier === 'optional' ? '일반' : '탐색'}
+                      </span>
                       <strong className="subject-name">{sub.name}</strong>
                     </div>
                     <div className="chart-bar-wrapper">
@@ -378,7 +349,7 @@ export function SubjectVisualizer({ result, onAskSuggestion }: SubjectVisualizer
                         <span className="chart-score">{sub.score}점</span>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -392,7 +363,7 @@ export function SubjectVisualizer({ result, onAskSuggestion }: SubjectVisualizer
           <div className="detail-header">
             <div>
               <span className={`detail-tier-badge ${selectedSubject.tier}`}>
-                {selectedSubject.tier === 'strong' ? '🔥 핵심 추천 과목' : '📘 일반 추천 과목'}
+                {selectedSubject.tier === 'strong' ? '🔥 핵심 추천 과목' : selectedSubject.tier === 'optional' ? '📘 일반 추천 과목' : '🔍 탐색 추천 과목'}
               </span>
               <h3>{selectedSubject.name}</h3>
             </div>

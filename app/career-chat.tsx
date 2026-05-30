@@ -13,7 +13,6 @@ type Message = {
 const starterPrompts = [
   '저는 고2이고 정보와 수학을 좋아해요. AI 개발자 쪽 진로가 맞을까요?',
   '간호사가 궁금해요. 생명과학은 좋아하지만 화학은 조금 부담돼요.',
-  '천안오성고에서 인공지능 개발자 진로에 맞는 과목이 열리는지 확인해줘.',
   '충남 지역에서 데이터 과학 과목을 들을 수 있는 학교를 찾아줘.'
 ];
 
@@ -72,7 +71,7 @@ export function CareerChat() {
           </div>
           <span className="badge subtle">CareerNet + NEIS 근거</span>
         </div>
-        
+
         <div className="chat-window" aria-live="polite">
           {messages.map((message, index) => (
             <article key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>
@@ -96,10 +95,10 @@ export function CareerChat() {
           {(!messages.some(m => m.role === 'user') && !input.trim()) && (
             <div className="chips chat-starters" aria-label="예시 질문">
               {starterPrompts.map((prompt) => (
-                <button 
-                  key={prompt} 
-                  type="button" 
-                  onClick={() => void sendMessage(prompt)} 
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => void sendMessage(prompt)}
                   disabled={loading}
                 >
                   {prompt}
