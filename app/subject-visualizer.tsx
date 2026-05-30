@@ -430,18 +430,25 @@ export function SubjectVisualizer({ result, onAskSuggestion }: SubjectVisualizer
                 🌐 <strong>{regionalSchoolSearch.region.name}</strong> 지역 학교 과목 개설
               </p>
               <div className="regional-schools-list">
-                {regionalSchoolSearch.matches.slice(0, 3).map((match, idx) => (
-                  <div key={idx} className="regional-school-row">
-                    <div className="school-info">
-                      <strong>{match.school.name}</strong>
-                      <span className="match-score">개설 매칭도: {(match.matchScore * 100).toFixed(0)}%</span>
+                {regionalSchoolSearch.matches.slice(0, 3).map((match, idx) => {
+                  const confirmedSum = match.confirmed.reduce((sum, m) => sum + m.score, 0);
+                  const notFoundSum = match.notFound.reduce((sum, m) => sum + m.score, 0);
+                  const totalSum = (confirmedSum + notFoundSum) || 1;
+                  const matchPercentage = Math.min(100, Math.round((confirmedSum / totalSum) * 100));
+
+                  return (
+                    <div key={idx} className="regional-school-row">
+                      <div className="school-info">
+                        <strong>{match.school.name}</strong>
+                        <span className="match-score">개설 매칭도: {matchPercentage}%</span>
+                      </div>
+                      <div className="school-subjects">
+                        <span className="label">확인된 과목:</span>
+                        <span className="subjs">{match.confirmed.slice(0, 3).map(m => m.subject).join(', ')}</span>
+                      </div>
                     </div>
-                    <div className="school-subjects">
-                      <span className="label">확인된 과목:</span>
-                      <span className="subjs">{match.confirmed.slice(0, 3).map(m => m.subject).join(', ')}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ) : null}
