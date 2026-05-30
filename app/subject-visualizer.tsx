@@ -329,13 +329,16 @@ export function SubjectVisualizer({ result, onAskSuggestion }: SubjectVisualizer
                 const isSelected = selectedSubject?.name === sub.name;
                 
                 return (
-                  <div 
+                  <button 
                     key={sub.name} 
+                    type="button"
                     className={`chart-row ${isSelected ? 'selected' : ''}`}
                     onClick={() => setSelectedSubject(sub)}
                   >
                     <div className="chart-label">
-                      <span className={`tier-badge ${sub.tier}`}>{sub.tier === 'strong' ? '핵심' : '일반'}</span>
+                      <span className={`tier-badge ${sub.tier}`}>
+                        {sub.tier === 'strong' ? '핵심' : sub.tier === 'optional' ? '일반' : '탐색'}
+                      </span>
                       <strong className="subject-name">{sub.name}</strong>
                     </div>
                     <div className="chart-bar-wrapper">
@@ -346,7 +349,7 @@ export function SubjectVisualizer({ result, onAskSuggestion }: SubjectVisualizer
                         <span className="chart-score">{sub.score}점</span>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -360,7 +363,7 @@ export function SubjectVisualizer({ result, onAskSuggestion }: SubjectVisualizer
           <div className="detail-header">
             <div>
               <span className={`detail-tier-badge ${selectedSubject.tier}`}>
-                {selectedSubject.tier === 'strong' ? '🔥 핵심 추천 과목' : '📘 일반 추천 과목'}
+                {selectedSubject.tier === 'strong' ? '🔥 핵심 추천 과목' : selectedSubject.tier === 'optional' ? '📘 일반 추천 과목' : '🔍 탐색 추천 과목'}
               </span>
               <h3>{selectedSubject.name}</h3>
             </div>

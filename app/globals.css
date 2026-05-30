@@ -1439,6 +1439,12 @@ p { color: var(--muted); line-height: 1.72; }
   padding: 6px;
   border-radius: 12px;
   transition: background 0.2s ease;
+  border: none;
+  background: none;
+  font-family: inherit;
+  width: 100%;
+  text-align: left;
+  color: inherit;
 }
 
 .chart-row:hover {
@@ -1475,6 +1481,11 @@ p { color: var(--muted); line-height: 1.72; }
   color: var(--accent);
 }
 
+.tier-badge.explore {
+  background: var(--bg-strong);
+  color: var(--muted-strong);
+}
+
 .subject-name {
   font-size: 13px;
   font-weight: 800;
@@ -1509,6 +1520,10 @@ p { color: var(--muted); line-height: 1.72; }
 
 .chart-bar.optional {
   background: linear-gradient(90deg, #f5f3ff, var(--accent));
+}
+
+.chart-bar.explore {
+  background: linear-gradient(90deg, var(--line-strong), var(--muted));
 }
 
 .chart-score {
@@ -1548,6 +1563,10 @@ p { color: var(--muted); line-height: 1.72; }
 
 .detail-tier-badge.optional {
   color: var(--accent);
+}
+
+.detail-tier-badge.explore {
+  color: var(--muted-strong);
 }
 
 .detail-header h3 {
