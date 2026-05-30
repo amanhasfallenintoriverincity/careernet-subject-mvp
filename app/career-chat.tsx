@@ -86,7 +86,29 @@ export function CareerChat() {
           {loading && (
             <article className="chat-message assistant">
               <span>AI</span>
-              <p>CareerNet과 NEIS 근거를 확인하고 있습니다...</p>
+              <div className="chat-loading-container">
+                <div className="chat-loading-text">
+                  CareerNet과 NEIS 근거를 확인하고 있습니다
+                  <span className="chat-loading-dots">
+                    <span className="chat-loading-dot"></span>
+                    <span className="chat-loading-dot"></span>
+                    <span className="chat-loading-dot"></span>
+                  </span>
+                </div>
+                <div className="chat-loading-bar-wrapper">
+                  <div className="chat-loading-bar"></div>
+                </div>
+                <div className="chat-loading-badges">
+                  <span className="loading-badge careernet">
+                    <span className="loading-badge-icon"></span>
+                    CareerNet 정보 조회
+                  </span>
+                  <span className="loading-badge neis">
+                    <span className="loading-badge-icon"></span>
+                    NEIS 교육과정 대조
+                  </span>
+                </div>
+              </div>
             </article>
           )}
         </div>
